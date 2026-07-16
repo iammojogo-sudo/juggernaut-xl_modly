@@ -1,0 +1,95 @@
+{
+  "id": "juggernaut-xl",
+  "name": "Juggernaut XL",
+  "type": "model",
+  "source": "https://huggingface.co/RunDiffusion/Juggernaut-XL-v9",
+  "description": "Juggernaut XL v9 — the world's most-downloaded SDXL model, purpose-built for photorealism and accurate prompt adherence. 6M+ downloads.",
+  "version": "1.0.0",
+  "author": "RunDiffusion / KandooAI",
+  "generator_class": "JuggernautXLGenerator",
+  "tags": ["text-to-image", "sdxl", "game-assets", "characters", "commercial-safe"],
+  "nodes": [
+    {
+      "id": "generate",
+      "name": "Generate Image",
+      "output": "image",
+      "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
+      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "hf_skip_prefixes": [],
+      "params_schema": [
+        {
+          "id": "prompt",
+          "label": "Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "Describe the asset. For game characters: 'a full body human male character in tpose, single figure, centered'."
+        },
+        {
+          "id": "negative_prompt",
+          "label": "Negative Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "Optional. Juggernaut XL works best with minimal or no negative prompt."
+        },
+        {
+          "id": "num_inference_steps",
+          "label": "Quality Steps",
+          "type": "select",
+          "default": 30,
+          "options": [
+            { "value": 20, "label": "20 (Fast)" },
+            { "value": 30, "label": "30 (Balanced)" },
+            { "value": 40, "label": "40 (High)" },
+            { "value": 50, "label": "50 (Maximum)" }
+          ],
+          "tooltip": "DPM++ SDE Karras works best at 30-40 steps."
+        },
+        {
+          "id": "guidance_scale",
+          "label": "Prompt Guidance",
+          "type": "number",
+          "default": 5.0,
+          "min": 1.0,
+          "max": 15.0,
+          "step": 0.5,
+          "tooltip": "3-7 is standard for Juggernaut XL. Lower = more realistic."
+        },
+        {
+          "id": "image_size",
+          "label": "Image Size",
+          "type": "select",
+          "default": "768",
+          "options": [
+            { "value": "768", "label": "768x768 (Safe for 6GB)" },
+            { "value": "896", "label": "896x896 (Balanced)" },
+            { "value": "1024", "label": "1024x1024 (Full, may need 8GB)" }
+          ],
+          "tooltip": "Larger = more detail for Zero123++, more VRAM."
+        },
+        {
+          "id": "camera_view",
+          "label": "Camera View",
+          "type": "select",
+          "default": "none",
+          "options": [
+            { "value": "none", "label": "None (Free)" },
+            { "value": "front", "label": "Front View" },
+            { "value": "right", "label": "Right Side" },
+            { "value": "back", "label": "Back View" },
+            { "value": "left", "label": "Left Side" }
+          ],
+          "tooltip": "Augments prompt with camera direction for consistent Zero123++ input."
+        },
+        {
+          "id": "seed",
+          "label": "Seed",
+          "type": "int",
+          "default": -1,
+          "min": -1,
+          "max": 2147483647,
+          "tooltip": "Random seed (-1 for random)."
+        }
+      ]
+    }
+  ]
+}
