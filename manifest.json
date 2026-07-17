@@ -2,12 +2,18 @@
   "id": "juggernaut-xl",
   "name": "Juggernaut XL",
   "type": "model",
-  "source": "https://huggingface.co/RunDiffusion/Juggernaut-XL-v9",
+  "source": "https://github.com/iammojogo-sudo/juggernaut-xl_modly",
   "description": "Juggernaut XL v9 — the world's most-downloaded SDXL model, purpose-built for photorealism and accurate prompt adherence. 6M+ downloads.",
   "version": "1.0.0",
   "author": "RunDiffusion / KandooAI",
   "generator_class": "JuggernautXLGenerator",
-  "tags": ["text-to-image", "sdxl", "game-assets", "characters", "commercial-safe"],
+  "tags": [
+    "text-to-image",
+    "sdxl",
+    "game-assets",
+    "characters",
+    "commercial-safe"
+  ],
   "nodes": [
     {
       "id": "generate",
@@ -37,10 +43,22 @@
           "type": "select",
           "default": 30,
           "options": [
-            { "value": 20, "label": "20 (Fast)" },
-            { "value": 30, "label": "30 (Balanced)" },
-            { "value": 40, "label": "40 (High)" },
-            { "value": 50, "label": "50 (Maximum)" }
+            {
+              "value": 20,
+              "label": "20 (Fast)"
+            },
+            {
+              "value": 30,
+              "label": "30 (Balanced)"
+            },
+            {
+              "value": 40,
+              "label": "40 (High)"
+            },
+            {
+              "value": 50,
+              "label": "50 (Maximum)"
+            }
           ],
           "tooltip": "DPM++ SDE Karras works best at 30-40 steps."
         },
@@ -48,9 +66,9 @@
           "id": "guidance_scale",
           "label": "Prompt Guidance",
           "type": "number",
-          "default": 5.0,
-          "min": 1.0,
-          "max": 15.0,
+          "default": 5,
+          "min": 1,
+          "max": 15,
           "step": 0.5,
           "tooltip": "3-7 is standard for Juggernaut XL. Lower = more realistic."
         },
@@ -60,9 +78,18 @@
           "type": "select",
           "default": "768",
           "options": [
-            { "value": "768", "label": "768x768 (Safe for 6GB)" },
-            { "value": "896", "label": "896x896 (Balanced)" },
-            { "value": "1024", "label": "1024x1024 (Full, may need 8GB)" }
+            {
+              "value": "768",
+              "label": "768x768 (Safe for 6GB)"
+            },
+            {
+              "value": "896",
+              "label": "896x896 (Balanced)"
+            },
+            {
+              "value": "1024",
+              "label": "1024x1024 (Full, may need 8GB)"
+            }
           ],
           "tooltip": "Larger = more detail for Zero123++, more VRAM."
         },
@@ -72,11 +99,26 @@
           "type": "select",
           "default": "none",
           "options": [
-            { "value": "none", "label": "None (Free)" },
-            { "value": "front", "label": "Front View" },
-            { "value": "right", "label": "Right Side" },
-            { "value": "back", "label": "Back View" },
-            { "value": "left", "label": "Left Side" }
+            {
+              "value": "none",
+              "label": "None (Free)"
+            },
+            {
+              "value": "front",
+              "label": "Front View"
+            },
+            {
+              "value": "right",
+              "label": "Right Side"
+            },
+            {
+              "value": "back",
+              "label": "Back View"
+            },
+            {
+              "value": "left",
+              "label": "Left Side"
+            }
           ],
           "tooltip": "Augments prompt with camera direction for consistent Zero123++ input."
         },
