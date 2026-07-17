@@ -57,8 +57,12 @@ def setup(
             accelerator = "cpu"
 
     print(f"[setup] accelerator={accelerator}  gpu_sm={gpu_sm}  cuda_version={cuda_version}")
-    print(f"[setup] Creating venv at {venv} …")
-    subprocess.run([python_exe, "-m", "venv", str(venv)], check=True)
+
+    if venv.exists():
+        print(f"[setup] venv already exists at {venv} — reusing it (Repair).")
+    else:
+        print(f"[setup] Creating venv at {venv} …")
+        subprocess.run([python_exe, "-m", "venv", str(venv)], check=True)
 
     if is_mac:
         print("[setup] macOS -> PyTorch from standard PyPI (includes MPS)")
