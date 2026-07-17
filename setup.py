@@ -1,22 +1,23 @@
 """
-SDXL Turbo — extension setup script.
+SDXL Turbo / Juggernaut XL — extension setup script.
 
-Creates an isolated venv and installs all required dependencies.
+Creates an isolated venv and installs all required dependencies (including
+torch). Model weights are downloaded separately by Modly's model-install step
+(driven by the manifest's hf_repo / hf_include_prefixes / download_check),
+into Modly's models/ folder, and are read OFFLINE at generation time.
+
 Called by Modly at extension install time with:
 
-    python setup.py <json_args>
+    python setup.py '<json_args>'
 
 where json_args contains:
     python_exe   — path to Modly's embedded Python (used to create the venv)
     ext_dir      — absolute path to this extension directory
+    gpu_sm       — GPU compute capability as integer
+    cuda_version — CUDA major/minor encoded as integer
     torch_flavor — Flavor of torch to use (cuda, rocm - defaults to cuda)
-    gpu_sm       — GPU compute capability as integer (e.g. 61 for Pascal, 86 for Ampere; 0 on macOS)
-    cuda_version — CUDA major/minor encoded as integer (e.g. 124, 128)
-    accelerator  — "mps" | "cuda" | "cpu"  (passed by Electron since Modly 1.x)
-    platform     — Electron's process.platform string ("win32", "darwin", "linux")
-
-Example (manual test):
-    python setup.py '{"python_exe":"C:/…/python.exe","ext_dir":"C:/…/sdxl-turbo","torch_flavor":"cuda","gpu_sm":86,"cuda_version":128}'
+    accelerator  — "mps" | "cuda" | "cpu"
+    platform     — Electron's process.platform string
 """
 import json
 import platform
@@ -29,56 +30,6 @@ def pip(venv: Path, *args: str) -> None:
     is_win = platform.system() == "Windows"
     pip_exe = venv / ("Scripts/pip.exe" if is_win else "bin/pip")
     subprocess.run([str(pip_exe), *args], check=True)
-
-
-def _venv_python(ext_dir: Path) -> Path:
-    is_win = platform.system() == "Windows"
-    return ext_dir / "venv" / ("Scripts/python.exe" if is_win else "bin/python")
-
-
-def resolve_models_dir(model_dir: str, ext_dir: Path) -> Path:
-    import os
-    md = model_dir or os.environ.get("MODELS_DIR")
-    if md:
-        return Path(md)
-    return ext_dir.parent.parent / "models"
-
-
-def download_weights(ext_dir: Path, models_dir: Path) -> None:
-    import os
-    manifest = json.loads((ext_dir / "manifest.json").read_text(encoding="utf-8"))
-    ext_id = manifest["id"]
-    nodes = manifest.get("nodes", []) or [manifest]
-
-    for node in nodes:
-        hf_repo = node.get("hf_repo")
-        if not hf_repo:
-            continue
-        node_id = node.get("id", ext_id)
-        target = models_dir / ext_id / node_id
-        target.mkdir(parents=True, exist_ok=True)
-
-        include = node.get("hf_include_prefixes") or []
-        skip = node.get("hf_skip_prefixes") or []
-        allow = [p for p in include if p]
-        ignore = list(skip) + [
-            "*.md", "LICENSE", "NOTICE", "Notice.txt", ".gitattributes",
-        ]
-
-        print(f"[setup] Downloading {hf_repo} -> {target}")
-        snippet = (
-            "import os;"
-            "from huggingface_hub import snapshot_download;"
-            f"snapshot_download(repo_id={hf_repo!r}, local_dir={str(target)!r}, "
-            f"allow_patterns={allow!r}, ignore_patterns={ignore!r});"
-            "print('DOWNLOAD_DONE')"
-        )
-        venv_py = _venv_python(ext_dir)
-        env = os.environ.copy()
-        env["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-        env.pop("HF_HUB_OFFLINE", None)
-        subprocess.run([str(venv_py), "-c", snippet], check=True, env=env)
-        print(f"[setup] Weights ready: {target}")
 
 
 def setup(
@@ -150,14 +101,8 @@ def setup(
         "scipy",
     )
 
-    # Download model weights into Modly's models/ folder so the extension is
-    # ready to run with no manual steps and no network at generation time.
-    models_dir = resolve_models_dir(model_dir, ext_dir)
-    models_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[setup] Models dir: {models_dir}")
-    download_weights(ext_dir, models_dir)
-
-    print("[setup] Done. Venv + weights ready at:", venv)
+    print("[setup] Done. Venv ready at:", venv)
+    print("[setup] Model weights are installed via Modly's model-download step.")
 
 
 if __name__ == "__main__":
