@@ -105,6 +105,16 @@ def setup(
         "scipy",
     )
 
+    # Real-ESRGAN for post-generation upscaling (2x / 4x -> up to 4096px).
+    # basicsr is its heavy dep; pin a known-good version. Non-fatal: the
+    # generator falls back to LANCZOS resize if this import fails at runtime.
+    print("[setup] Installing Real-ESRGAN (upscaler) …")
+    try:
+        pip(venv, "install", "realesrgan", "basicsr")
+        print("[setup] Real-ESRGAN installed.")
+    except Exception as _e:
+        print(f"[setup] Real-ESRGAN install skipped (will fallback to LANCZOS): {_e}")
+
     print("[setup] Done. Venv ready at:", venv)
     print("[setup] Model weights are installed via Modly's model-download step.")
 

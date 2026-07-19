@@ -172,16 +172,32 @@ class JuggernautXLGenerator(BaseGenerator):
         if self._model is None:
             self.load()
 
-        prompt          = str(params.get("prompt", ""))
-        negative_prompt = str(params.get("negative_prompt",
-                                          ""))
+        v_keys          = ["v1", "v2", "v3", "v4", "v5"]
+        parts           = [str(params.get(k, "")).strip() for k in v_keys if str(params.get(k, "")).strip()]
+        pose = str(params.get("pose", "t_pose"))
+        POSE_SUFFIXES = {
+            "t_pose":            "t pose, arms straight out to sides parallel to ground, symmetrical",
+            "a_pose":            "a pose, arms slightly lowered at 45 degrees, relaxed shoulders, symmetrical",
+            "neutral_standing":  "neutral standing pose, arms at sides, relaxed posture",
+            "none":              "",
+        }
+        pose_suffix = POSE_SUFFIXES.get(pose, "")
+        if parts:
+            prompt      = ", ".join(parts) + ", full figure, isolated on a solid background"
+            if pose_suffix:
+                prompt += ", " + pose_suffix
+        else:
+            prompt      = str(params.get("prompt", ""))
+        negative_prompt = str(params.get("negative_prompt", ""))
         num_steps       = int(params.get("num_inference_steps", 30))
-        guidance_scale  = float(params.get("guidance_scale", 5.0))
-        size_str        = str(params.get("image_size", "768"))
-        size            = int(size_str)
+        guidance_scale  = min(float(params.get("guidance_scale", 7.0)), 30.0)
+        resolution      = int(params.get("resolution", 1024))
+        upscale         = str(params.get("upscale", "none"))
         seed            = int(params.get("seed", -1))
         if seed == -1:
             seed = random.randint(0, 2**32 - 1)
+        width           = resolution
+        height          = resolution
 
         if not prompt:
             raise ValueError("A text prompt is required for generation.")
@@ -217,8 +233,8 @@ class JuggernautXLGenerator(BaseGenerator):
                 negative_prompt=negative_prompt if negative_prompt else None,
                 num_inference_steps=num_steps,
                 guidance_scale=guidance_scale,
-                width=size,
-                height=size,
+                width=width,
+                height=height,
                 generator=generator,
                 output_type="pil",
             )
@@ -228,24 +244,112 @@ class JuggernautXLGenerator(BaseGenerator):
 
         self._check_cancelled(cancel_event)
 
+        # Free SDXL before upscaling so the two models are never resident on GPU
+        # at the same time (6 GB VRAM budget).
+        self.unload()
+
+        # Upscale the native-resolution output if requested. Real-ESRGAN adds
+        # genuine detail; falls back to LANCZOS smoothing if it's unavailable.
+        if upscale in ("2x", "4x"):
+            scale = 2 if upscale == "2x" else 4
+            self._report(progress_cb, 92, f"Upscaling {upscale}…")
+            image = self._upscale_image(image, scale)
+
         self._report(progress_cb, 95, "Saving image…")
         run = _modly_new_run_folder(self.outputs_dir)
         path = run / "source.png"
         image.save(str(path), "PNG")
 
         self._report(progress_cb, 100, "Done")
-        self.unload()
         return path
+
+    def _upscale_image(self, image: "Image.Image", scale: int) -> "Image.Image":
+        """Upscale with Real-ESRGAN (real detail) falling back to LANCZOS.
+
+        Real-ESRGAN is loaded fresh here (after SDXL was unloaded) and freed
+        immediately so it never co-resides with the diffusion model on GPU.
+        """
+        import torch
+
+        try:
+            from basicsr.archs.rrdbnet_arch import RRDBNet
+            from realesrgan import RealESRGANer
+
+            # Pre-downloaded weights live under Modly's models/ folder so this
+            # works fully offline (Real-ESRGAN would otherwise fetch from GitHub).
+            _model_dir = Path(self.model_dir) if getattr(self, "model_dir", None) else Path(".")
+            _weight_name = "realesrgan-x4plus.pth" if scale == 4 else "realesrgan-x2plus.pth"
+            _weight_path = _model_dir / _weight_name
+            if not _weight_path.exists():
+                # Fall back to the package's own download location if present.
+                _weight_path = Path(__file__).parent / _weight_name
+
+            if not _weight_path.exists():
+                raise FileNotFoundError(f"Real-ESRGAN weights not found: {_weight_path}")
+
+            _nf, _nb = (64, 23) if scale == 4 else (64, 23)
+            _model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=_nf,
+                             num_block=_nb, num_grow_ch=32, scale=scale)
+            _use_half = torch.cuda.is_available()
+            _upsampler = RealESRGANer(
+                scale=scale,
+                model_path=str(_weight_path),
+                model=_model,
+                tile=0,
+                tile_pad=10,
+                pre_pad=0,
+                half=_use_half,
+            )
+            import numpy as np
+            _img_np = np.array(image)
+            try:
+                _output, _ = _upsampler.enhance(_img_np, outscale=scale)
+            finally:
+                del _upsampler, _model
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            return Image.fromarray(_output)
+        except Exception as _e:
+            print(f"[JuggernautXL] Real-ESRGAN unavailable ({_e}); using LANCZOS {scale}x")
+            return image.resize((image.width * scale, image.height * scale), Image.LANCZOS)
 
     @classmethod
     def params_schema(cls) -> list:
         return [
             {
-                "id":      "prompt",
-                "label":   "Prompt",
+                "id":      "v1",
+                "label":   "Physical Profile Details",
                 "type":    "string",
                 "default": "",
-                "tooltip": "Describe the asset. For game characters: 'a full body human male character in tpose'.",
+                "tooltip": "Body type, frame, proportions.",
+            },
+            {
+                "id":      "v2",
+                "label":   "Material Surface Ideas",
+                "type":    "string",
+                "default": "",
+                "tooltip": "Skin, armor, fabric, or surface finish.",
+            },
+            {
+                "id":      "v3",
+                "label":   "Wear and Tear State",
+                "type":    "string",
+                "default": "",
+                "tooltip": "Condition, weathering, damage.",
+            },
+            {
+                "id":      "v4",
+                "label":   "Target Art Style",
+                "type":    "string",
+                "default": "",
+                "tooltip": "Photorealistic, stylized, etc.",
+            },
+            {
+                "id":      "v5",
+                "label":   "Color Theme",
+                "type":    "string",
+                "default": "",
+                "tooltip": "Palette, color scheme, mood.",
             },
             {
                 "id":      "negative_prompt",
@@ -271,23 +375,49 @@ class JuggernautXLGenerator(BaseGenerator):
                 "id":      "guidance_scale",
                 "label":   "Prompt Guidance",
                 "type":    "float",
-                "default": 5.0,
+                "default": 7.0,
                 "min":     1.0,
-                "max":     15.0,
+                "max":     30.0,
                 "step":    0.5,
-                "tooltip": "3-7 is standard for Juggernaut XL. Lower = more realistic.",
+                "tooltip": "3-7 is standard. Higher = stricter prompt adherence, lower = more creative.",
+            },
+
+            {
+                "id":      "resolution",
+                "label":   "Output Resolution",
+                "type":    "select",
+                "default": 1024,
+                "options": [
+                    {"value": 512,  "label": "512 (Fast)"},
+                    {"value": 768,  "label": "768 (Compact)"},
+                    {"value": 1024, "label": "1024 (Native - Default)"},
+                ],
+                "tooltip": "SDXL generates natively at 1024. Higher resolutions are produced by upscaling afterward.",
             },
             {
-                "id":      "image_size",
-                "label":   "Image Size",
+                "id":      "upscale",
+                "label":   "Upscale Output",
                 "type":    "select",
-                "default": "768",
+                "default": "none",
                 "options": [
-                    {"value": "768", "label": "768x768 (Safe for 6GB)"},
-                    {"value": "896", "label": "896x896 (Balanced)"},
-                    {"value": "1024", "label": "1024x1024 (Full, may need 8GB)"},
+                    {"value": "none", "label": "None (1x)"},
+                    {"value": "2x",   "label": "2x (2048)"},
+                    {"value": "4x",   "label": "4x (4096)"},
                 ],
-                "tooltip": "Larger = more detail for Zero123++, more VRAM.",
+                "tooltip": "Upscale after generation with Real-ESRGAN. 4x reaches 4096px. Falls back to smooth resize if unavailable.",
+            },
+            {
+                "id":      "pose",
+                "label":   "Subject Pose",
+                "type":    "select",
+                "default": "t_pose",
+                "options": [
+                    {"value": "t_pose",            "label": "T-Pose"},
+                    {"value": "a_pose",            "label": "A-Pose"},
+                    {"value": "neutral_standing",  "label": "Neutral Standing"},
+                    {"value": "none",              "label": "None (Free)"},
+                ],
+                "tooltip": "Forces a specific pose. Use T-pose or A-pose for multi-view consistency.",
             },
             {
                 "id":      "camera_view",

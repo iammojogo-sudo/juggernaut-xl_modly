@@ -24,11 +24,39 @@
       "hf_skip_prefixes": [],
       "params_schema": [
         {
-          "id": "prompt",
-          "label": "Prompt",
+          "id": "v1",
+          "label": "Physical Profile Details",
           "type": "string",
           "default": "",
-          "tooltip": "Describe the asset. For game characters: 'a full body human male character in tpose, single figure, centered'."
+          "tooltip": "Body type, frame, proportions."
+        },
+        {
+          "id": "v2",
+          "label": "Material Surface Ideas",
+          "type": "string",
+          "default": "",
+          "tooltip": "Skin, armor, fabric, or surface finish."
+        },
+        {
+          "id": "v3",
+          "label": "Wear and Tear State",
+          "type": "string",
+          "default": "",
+          "tooltip": "Condition, weathering, damage."
+        },
+        {
+          "id": "v4",
+          "label": "Target Art Style",
+          "type": "string",
+          "default": "",
+          "tooltip": "Photorealistic, stylized, etc."
+        },
+        {
+          "id": "v5",
+          "label": "Color Theme",
+          "type": "string",
+          "default": "",
+          "tooltip": "Palette, color scheme, mood."
         },
         {
           "id": "negative_prompt",
@@ -66,32 +94,60 @@
           "id": "guidance_scale",
           "label": "Prompt Guidance",
           "type": "number",
-          "default": 5,
+          "default": 7,
           "min": 1,
-          "max": 15,
+          "max": 30,
           "step": 0.5,
-          "tooltip": "3-7 is standard for Juggernaut XL. Lower = more realistic."
+          "tooltip": "3-7 is standard. Higher = stricter prompt adherence, lower = more creative."
         },
         {
-          "id": "image_size",
-          "label": "Image Size",
+          "id": "resolution",
+          "label": "Output Resolution",
           "type": "select",
-          "default": "768",
+          "default": 1024,
+          "options": [
+            { "value": 512, "label": "512 (Fast)" },
+            { "value": 768, "label": "768 (Compact)" },
+            { "value": 1024, "label": "1024 (Native - Default)" }
+          ],
+          "tooltip": "SDXL generates natively at 1024. Higher resolutions are produced by upscaling afterward, not by direct generation."
+        },
+        {
+          "id": "upscale",
+          "label": "Upscale Output",
+          "type": "select",
+          "default": "none",
+          "options": [
+            { "value": "none", "label": "None (1x)" },
+            { "value": "2x", "label": "2x (2048)" },
+            { "value": "4x", "label": "4x (4096)" }
+          ],
+          "tooltip": "Upscale the generated image with Real-ESRGAN after generation. 4x reaches 4096px. Falls back to smooth resize if Real-ESRGAN is unavailable."
+        },
+        {
+          "id": "pose",
+          "label": "Subject Pose",
+          "type": "select",
+          "default": "t_pose",
           "options": [
             {
-              "value": "768",
-              "label": "768x768 (Safe for 6GB)"
+              "value": "t_pose",
+              "label": "T-Pose"
             },
             {
-              "value": "896",
-              "label": "896x896 (Balanced)"
+              "value": "a_pose",
+              "label": "A-Pose"
             },
             {
-              "value": "1024",
-              "label": "1024x1024 (Full, may need 8GB)"
+              "value": "neutral_standing",
+              "label": "Neutral Standing"
+            },
+            {
+              "value": "none",
+              "label": "None (Free)"
             }
           ],
-          "tooltip": "Larger = more detail for Zero123++, more VRAM."
+          "tooltip": "Forces a specific pose. Use T-pose or A-pose for multi-view consistency."
         },
         {
           "id": "camera_view",
