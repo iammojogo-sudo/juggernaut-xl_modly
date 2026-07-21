@@ -5,7 +5,7 @@
   "source": "https://github.com/iammojogo-sudo/juggernaut-xl_modly",
   "description": "Juggernaut XL v9 — the world's most-downloaded SDXL model, purpose-built for photorealism and accurate prompt adherence. 6M+ downloads.",
   "version": "1.0.0",
-  "author": "RunDiffusion / KandooAI",
+  "author": "iammojogo",
   "generator_class": "JuggernautXLGenerator",
   "tags": [
     "text-to-image",
@@ -86,6 +86,14 @@
             {
               "value": 50,
               "label": "50 (Maximum)"
+            },
+            {
+              "value": 100,
+              "label": "100 (Overkill)"
+            },
+            {
+              "value": 200,
+              "label": "200 (Cororpate)"
             }
           ],
           "tooltip": "DPM++ SDE Karras works best at 30-40 steps."
@@ -186,6 +194,267 @@
           "min": -1,
           "max": 2147483647,
           "tooltip": "Random seed (-1 for random)."
+        }
+      ]
+    },
+    {
+      "id": "img2img",
+      "name": "img2img (Edit with Prompt)",
+      "input": "image",
+      "output": "image",
+      "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
+      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "hf_skip_prefixes": [],
+      "params_schema": [
+        {
+          "id": "prompt",
+          "label": "Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "Describe the desired edit. E.g. 'a warrior in armor, jungle background'."
+        },
+        {
+          "id": "negative_prompt",
+          "label": "Negative Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "Things to avoid."
+        },
+        {
+          "id": "strength",
+          "label": "Edit Strength",
+          "type": "number",
+          "default": 0.7,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05,
+          "tooltip": "0 = no change, 1 = fully regenerate. 0.3-0.5 for subtle, 0.7-0.9 for major changes."
+        },
+        {
+          "id": "num_inference_steps",
+          "label": "Quality Steps",
+          "type": "select",
+          "default": 30,
+          "options": [
+            { "value": 15, "label": "15 (Fast)" },
+            { "value": 30, "label": "30 (Balanced)" },
+            { "value": 50, "label": "50 (High)" }
+          ]
+        },
+        {
+          "id": "guidance_scale",
+          "label": "Guidance Scale",
+          "type": "number",
+          "default": 7.0,
+          "min": 1.0,
+          "max": 20.0,
+          "step": 0.5
+        },
+        {
+          "id": "seed",
+          "label": "Seed",
+          "type": "int",
+          "default": -1,
+          "min": -1,
+          "max": 2147483647
+        }
+      ]
+    },
+    {
+      "id": "inpaint",
+      "name": "Inpaint (Background/Object Replace)",
+      "inputs": ["image", "image"],
+      "output": "image",
+      "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
+      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "hf_skip_prefixes": [],
+      "params_schema": [
+        {
+          "id": "prompt",
+          "label": "Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "What to generate in the masked area."
+        },
+        {
+          "id": "negative_prompt",
+          "label": "Negative Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "Things to avoid."
+        },
+        {
+          "id": "strength",
+          "label": "Edit Strength",
+          "type": "number",
+          "default": 0.95,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05
+        },
+        {
+          "id": "num_inference_steps",
+          "label": "Quality Steps",
+          "type": "select",
+          "default": 30,
+          "options": [
+            { "value": 15, "label": "15 (Fast)" },
+            { "value": 30, "label": "30 (Balanced)" },
+            { "value": 50, "label": "50 (High)" }
+          ]
+        },
+        {
+          "id": "guidance_scale",
+          "label": "Guidance Scale",
+          "type": "number",
+          "default": 7.5,
+          "min": 1.0,
+          "max": 20.0,
+          "step": 0.5
+        },
+        {
+          "id": "seed",
+          "label": "Seed",
+          "type": "int",
+          "default": -1,
+          "min": -1,
+          "max": 2147483647
+        }
+      ]
+    },
+    {
+      "id": "controlpose",
+      "name": "Pose Transfer (ControlNet)",
+      "inputs": ["image", "image"],
+      "output": "image",
+      "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
+      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "hf_skip_prefixes": [],
+      "params_schema": [
+        {
+          "id": "prompt",
+          "label": "Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "Describe the output. E.g. 'a warrior in armor, cinematic lighting'."
+        },
+        {
+          "id": "negative_prompt",
+          "label": "Negative Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "Things to avoid."
+        },
+        {
+          "id": "controlnet_scale",
+          "label": "Pose Influence",
+          "type": "number",
+          "default": 0.8,
+          "min": 0.0,
+          "max": 2.0,
+          "step": 0.05,
+          "tooltip": "How strongly the pose reference affects output."
+        },
+        {
+          "id": "num_inference_steps",
+          "label": "Quality Steps",
+          "type": "select",
+          "default": 30,
+          "options": [
+            { "value": 15, "label": "15 (Fast)" },
+            { "value": 30, "label": "30 (Balanced)" },
+            { "value": 50, "label": "50 (High)" }
+          ]
+        },
+        {
+          "id": "guidance_scale",
+          "label": "Guidance Scale",
+          "type": "number",
+          "default": 7.0,
+          "min": 1.0,
+          "max": 20.0,
+          "step": 0.5
+        },
+        {
+          "id": "seed",
+          "label": "Seed",
+          "type": "int",
+          "default": -1,
+          "min": -1,
+          "max": 2147483647
+        }
+      ]
+    },
+    {
+      "id": "depth2img",
+      "name": "Depth-Guided Edit (Depth ControlNet)",
+      "inputs": ["image", "image"],
+      "output": "image",
+      "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
+      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "hf_skip_prefixes": [],
+      "params_schema": [
+        {
+          "id": "prompt",
+          "label": "Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "Describe the output. E.g. 'a warrior in armor, cinematic lighting'."
+        },
+        {
+          "id": "negative_prompt",
+          "label": "Negative Prompt",
+          "type": "string",
+          "default": "",
+          "tooltip": "Things to avoid."
+        },
+        {
+          "id": "controlnet_scale",
+          "label": "Depth Influence",
+          "type": "number",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 2.0,
+          "step": 0.05,
+          "tooltip": "How strongly the depth map constrains the output shape."
+        },
+        {
+          "id": "strength",
+          "label": "Edit Strength",
+          "type": "number",
+          "default": 0.8,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05,
+          "tooltip": "0 = no change, 1 = fully regenerate. Lower values preserve more of the input image."
+        },
+        {
+          "id": "num_inference_steps",
+          "label": "Quality Steps",
+          "type": "select",
+          "default": 30,
+          "options": [
+            { "value": 15, "label": "15 (Fast)" },
+            { "value": 30, "label": "30 (Balanced)" },
+            { "value": 50, "label": "50 (High)" }
+          ]
+        },
+        {
+          "id": "guidance_scale",
+          "label": "Guidance Scale",
+          "type": "number",
+          "default": 7.0,
+          "min": 1.0,
+          "max": 20.0,
+          "step": 0.5
+        },
+        {
+          "id": "seed",
+          "label": "Seed",
+          "type": "int",
+          "default": -1,
+          "min": -1,
+          "max": 2147483647
         }
       ]
     }
