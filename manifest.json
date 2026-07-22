@@ -114,9 +114,18 @@
           "type": "select",
           "default": 1024,
           "options": [
-            { "value": 512, "label": "512 (Fast)" },
-            { "value": 768, "label": "768 (Compact)" },
-            { "value": 1024, "label": "1024 (Native - Default)" }
+            {
+              "value": 512,
+              "label": "512 (Fast)"
+            },
+            {
+              "value": 768,
+              "label": "768 (Compact)"
+            },
+            {
+              "value": 1024,
+              "label": "1024 (Native - Default)"
+            }
           ],
           "tooltip": "SDXL generates natively at 1024. Higher resolutions are produced by upscaling afterward, not by direct generation."
         },
@@ -126,9 +135,18 @@
           "type": "select",
           "default": "none",
           "options": [
-            { "value": "none", "label": "None (1x)" },
-            { "value": "2x", "label": "2x (2048)" },
-            { "value": "4x", "label": "4x (4096)" }
+            {
+              "value": "none",
+              "label": "None (1x)"
+            },
+            {
+              "value": "2x",
+              "label": "2x (2048)"
+            },
+            {
+              "value": "4x",
+              "label": "4x (4096)"
+            }
           ],
           "tooltip": "Upscale the generated image with Real-ESRGAN after generation. 4x reaches 4096px. Falls back to smooth resize if Real-ESRGAN is unavailable."
         },
@@ -225,8 +243,8 @@
           "label": "Edit Strength",
           "type": "number",
           "default": 0.7,
-          "min": 0.0,
-          "max": 1.0,
+          "min": 0,
+          "max": 1,
           "step": 0.05,
           "tooltip": "0 = no change, 1 = fully regenerate. 0.3-0.5 for subtle, 0.7-0.9 for major changes."
         },
@@ -236,18 +254,27 @@
           "type": "select",
           "default": 30,
           "options": [
-            { "value": 15, "label": "15 (Fast)" },
-            { "value": 30, "label": "30 (Balanced)" },
-            { "value": 50, "label": "50 (High)" }
+            {
+              "value": 15,
+              "label": "15 (Fast)"
+            },
+            {
+              "value": 30,
+              "label": "30 (Balanced)"
+            },
+            {
+              "value": 50,
+              "label": "50 (High)"
+            }
           ]
         },
         {
           "id": "guidance_scale",
           "label": "Guidance Scale",
           "type": "number",
-          "default": 7.0,
-          "min": 1.0,
-          "max": 20.0,
+          "default": 7,
+          "min": 1,
+          "max": 20,
           "step": 0.5
         },
         {
@@ -263,7 +290,10 @@
     {
       "id": "inpaint",
       "name": "Inpaint (Background/Object Replace)",
-      "inputs": ["image", "image"],
+      "inputs": [
+        "image",
+        "image"
+      ],
       "output": "image",
       "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
       "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
@@ -288,8 +318,8 @@
           "label": "Edit Strength",
           "type": "number",
           "default": 0.95,
-          "min": 0.0,
-          "max": 1.0,
+          "min": 0,
+          "max": 1,
           "step": 0.05
         },
         {
@@ -298,9 +328,18 @@
           "type": "select",
           "default": 30,
           "options": [
-            { "value": 15, "label": "15 (Fast)" },
-            { "value": 30, "label": "30 (Balanced)" },
-            { "value": 50, "label": "50 (High)" }
+            {
+              "value": 15,
+              "label": "15 (Fast)"
+            },
+            {
+              "value": 30,
+              "label": "30 (Balanced)"
+            },
+            {
+              "value": 50,
+              "label": "50 (High)"
+            }
           ]
         },
         {
@@ -308,8 +347,8 @@
           "label": "Guidance Scale",
           "type": "number",
           "default": 7.5,
-          "min": 1.0,
-          "max": 20.0,
+          "min": 1,
+          "max": 20,
           "step": 0.5
         },
         {
@@ -325,7 +364,10 @@
     {
       "id": "controlpose",
       "name": "Pose Transfer (ControlNet)",
-      "inputs": ["image", "image"],
+      "inputs": [
+        "image",
+        "image"
+      ],
       "output": "image",
       "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
       "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
@@ -350,8 +392,8 @@
           "label": "Pose Influence",
           "type": "number",
           "default": 0.8,
-          "min": 0.0,
-          "max": 2.0,
+          "min": 0,
+          "max": 2,
           "step": 0.05,
           "tooltip": "How strongly the pose reference affects output."
         },
@@ -361,18 +403,27 @@
           "type": "select",
           "default": 30,
           "options": [
-            { "value": 15, "label": "15 (Fast)" },
-            { "value": 30, "label": "30 (Balanced)" },
-            { "value": 50, "label": "50 (High)" }
+            {
+              "value": 15,
+              "label": "15 (Fast)"
+            },
+            {
+              "value": 30,
+              "label": "30 (Balanced)"
+            },
+            {
+              "value": 50,
+              "label": "50 (High)"
+            }
           ]
         },
         {
           "id": "guidance_scale",
           "label": "Guidance Scale",
           "type": "number",
-          "default": 7.0,
-          "min": 1.0,
-          "max": 20.0,
+          "default": 7,
+          "min": 1,
+          "max": 20,
           "step": 0.5
         },
         {
@@ -388,7 +439,10 @@
     {
       "id": "depth2img",
       "name": "Depth-Guided Edit (Depth ControlNet)",
-      "inputs": ["image", "image"],
+      "inputs": [
+        "image",
+        "image"
+      ],
       "output": "image",
       "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
       "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
@@ -412,9 +466,9 @@
           "id": "controlnet_scale",
           "label": "Depth Influence",
           "type": "number",
-          "default": 1.0,
-          "min": 0.0,
-          "max": 2.0,
+          "default": 1,
+          "min": 0,
+          "max": 2,
           "step": 0.05,
           "tooltip": "How strongly the depth map constrains the output shape."
         },
@@ -423,8 +477,8 @@
           "label": "Edit Strength",
           "type": "number",
           "default": 0.8,
-          "min": 0.0,
-          "max": 1.0,
+          "min": 0,
+          "max": 1,
           "step": 0.05,
           "tooltip": "0 = no change, 1 = fully regenerate. Lower values preserve more of the input image."
         },
@@ -434,18 +488,27 @@
           "type": "select",
           "default": 30,
           "options": [
-            { "value": 15, "label": "15 (Fast)" },
-            { "value": 30, "label": "30 (Balanced)" },
-            { "value": 50, "label": "50 (High)" }
+            {
+              "value": 15,
+              "label": "15 (Fast)"
+            },
+            {
+              "value": 30,
+              "label": "30 (Balanced)"
+            },
+            {
+              "value": 50,
+              "label": "50 (High)"
+            }
           ]
         },
         {
           "id": "guidance_scale",
           "label": "Guidance Scale",
           "type": "number",
-          "default": 7.0,
-          "min": 1.0,
-          "max": 20.0,
+          "default": 7,
+          "min": 1,
+          "max": 20,
           "step": 0.5
         },
         {

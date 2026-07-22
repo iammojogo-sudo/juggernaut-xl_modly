@@ -162,6 +162,8 @@ class JuggernautXLGenerator(BaseGenerator):
             pipe = pipe.to(device)
 
         self._model = pipe
+        self._device = device
+        self._dtype = dtype
         print(f"[JuggernautXL] Loaded on {device}.")
 
     def unload(self) -> None:
@@ -649,6 +651,10 @@ class JuggernautXLGenerator(BaseGenerator):
         if depth_control.size != init_image.size:
             depth_control = depth_control.resize(init_image.size, Image.LANCZOS)
 
+        # Invert depth: ControlNet expects black=far, white=near (DPT/MiDaS convention),
+        # but our pyrender depth maps have white=far, black=near.
+        depth_control = Image.eval(depth_control, lambda x: 255 - x)
+
         pipe = StableDiffusionXLControlNetImg2ImgPipeline(
             vae=self._model.vae,
             text_encoder=self._model.text_encoder,
@@ -689,6 +695,7 @@ class JuggernautXLGenerator(BaseGenerator):
                 image=init_image,
                 control_image=depth_control,
                 controlnet_conditioning_scale=cn_scale,
+                strength=strength,
                 num_inference_steps=num_steps,
                 guidance_scale=guidance_scale,
                 generator=generator,

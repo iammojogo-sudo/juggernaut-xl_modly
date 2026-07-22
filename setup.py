@@ -126,9 +126,11 @@ def setup(
     ]
     try:
         from huggingface_hub import snapshot_download as _snapshot_download
+        _model_dir = Path(model_dir) if model_dir else (venv.parent.parent / "models")
         for repo in _controlnet_repos:
             cn_name = repo.split("/")[-1]
-            cn_dir = venv.parent / cn_name
+            # Download alongside the main model so runtime _load_controlnet finds it
+            cn_dir = _model_dir / cn_name
             if cn_dir.exists():
                 print(f"[setup] ControlNet {cn_name} already present, skipping.")
                 continue
