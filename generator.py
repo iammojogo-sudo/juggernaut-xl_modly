@@ -61,7 +61,7 @@ def _modly_current_run_folder(outputs_dir, params=None, input_path=None):
 
 _HF_REPO_ID = "RunDiffusion/Juggernaut-XL-v9"
 _OPENPOSE_REPO = "lllyasviel/control_v11p_sd15_openpose"
-_DEPTH_REPO = "stabilityai/control-lora-depth-rank256"
+_DEPTH_REPO = "diffusers/controlnet-depth-sdxl-1.0-small"
 
 
 class JuggernautXLGenerator(BaseGenerator):
@@ -193,19 +193,35 @@ class JuggernautXLGenerator(BaseGenerator):
         if not cn_dir.exists():
             cn_dir = self.model_dir / cn_name
         print(f"[JuggernautXL] Loading ControlNet {repo}...")
-        if cn_dir.exists():
-            self._controlnet = ControlNetModel.from_pretrained(
-                str(cn_dir), torch_dtype=self._dtype, use_safetensors=True
-            )
-        else:
-            import safetensors
-            os.environ.pop("HF_HUB_OFFLINE", None)
-            os.environ.pop("TRANSFORMERS_OFFLINE", None)
-            self._controlnet = ControlNetModel.from_pretrained(
-                repo, torch_dtype=self._dtype, use_safetensors=True
-            )
-            os.environ["HF_HUB_OFFLINE"] = "1"
-            os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        try:
+            if cn_dir.exists():
+                self._controlnet = ControlNetModel.from_pretrained(
+                    str(cn_dir), torch_dtype=self._dtype, use_safetensors=True, variant="fp16"
+                )
+            else:
+                import safetensors
+                os.environ.pop("HF_HUB_OFFLINE", None)
+                os.environ.pop("TRANSFORMERS_OFFLINE", None)
+                self._controlnet = ControlNetModel.from_pretrained(
+                    repo, torch_dtype=self._dtype, use_safetensors=True, variant="fp16"
+                )
+                os.environ["HF_HUB_OFFLINE"] = "1"
+                os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        except Exception:
+            # Fallback: try without fp16 variant
+            if cn_dir.exists():
+                self._controlnet = ControlNetModel.from_pretrained(
+                    str(cn_dir), torch_dtype=self._dtype, use_safetensors=True
+                )
+            else:
+                import safetensors
+                os.environ.pop("HF_HUB_OFFLINE", None)
+                os.environ.pop("TRANSFORMERS_OFFLINE", None)
+                self._controlnet = ControlNetModel.from_pretrained(
+                    repo, torch_dtype=self._dtype, use_safetensors=True
+                )
+                os.environ["HF_HUB_OFFLINE"] = "1"
+                os.environ["TRANSFORMERS_OFFLINE"] = "1"
         self._controlnet = self._controlnet.to(self._device)
         self._controlnet_loaded_repo = repo
         print(f"[JuggernautXL] ControlNet loaded ({repo}).")

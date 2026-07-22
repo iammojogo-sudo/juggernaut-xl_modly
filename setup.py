@@ -122,7 +122,7 @@ def setup(
     print("[setup] Pre-downloading ControlNet models...")
     _controlnet_repos = [
         "lllyasviel/control_v11p_sd15_openpose",
-        "stabilityai/control-lora-depth-rank256",
+        "diffusers/controlnet-depth-sdxl-1.0-small",
     ]
     try:
         from huggingface_hub import snapshot_download as _snapshot_download
