@@ -60,17 +60,12 @@ def _modly_current_run_folder(outputs_dir, params=None, input_path=None):
 
 
 _HF_REPO_ID = "RunDiffusion/Juggernaut-XL-v9"
-_OPENPOSE_REPO = "lllyasviel/control_v11p_sd15_openpose"
-_DEPTH_REPO = "diffusers/controlnet-depth-sdxl-1.0-small"
 
 
 class JuggernautXLGenerator(BaseGenerator):
     MODEL_ID     = "juggernaut-xl"
     DISPLAY_NAME = "Juggernaut XL"
     VRAM_GB      = 6
-
-    _controlnet = None
-    _controlnet_loaded_repo = None
 
     def is_downloaded(self) -> bool:
         if self.download_check:
@@ -181,53 +176,6 @@ class JuggernautXLGenerator(BaseGenerator):
         except ImportError:
             pass
 
-    def _load_controlnet(self, repo=_OPENPOSE_REPO):
-        if self._controlnet is not None and self._controlnet_loaded_repo == repo:
-            return
-        import torch
-        from diffusers import ControlNetModel
-
-        self._controlnet = None
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        cn_name = repo.split("/")[-1]
-        cn_dir = self.model_dir.parent / cn_name
-        if not cn_dir.exists():
-            cn_dir = self.model_dir / cn_name
-        print(f"[JuggernautXL] Loading ControlNet {repo}...")
-        try:
-            if cn_dir.exists():
-                self._controlnet = ControlNetModel.from_pretrained(
-                    str(cn_dir), torch_dtype=self._dtype, use_safetensors=True
-                )
-            else:
-                import safetensors
-                os.environ.pop("HF_HUB_OFFLINE", None)
-                os.environ.pop("TRANSFORMERS_OFFLINE", None)
-                self._controlnet = ControlNetModel.from_pretrained(
-                    repo, torch_dtype=self._dtype, use_safetensors=True
-                )
-                os.environ["HF_HUB_OFFLINE"] = "1"
-                os.environ["TRANSFORMERS_OFFLINE"] = "1"
-        except Exception:
-            # Fallback: try without fp16 variant
-            if cn_dir.exists():
-                self._controlnet = ControlNetModel.from_pretrained(
-                    str(cn_dir), torch_dtype=self._dtype, use_safetensors=True
-                )
-            else:
-                import safetensors
-                os.environ.pop("HF_HUB_OFFLINE", None)
-                os.environ.pop("TRANSFORMERS_OFFLINE", None)
-                self._controlnet = ControlNetModel.from_pretrained(
-                    repo, torch_dtype=self._dtype, use_safetensors=True
-                )
-                os.environ["HF_HUB_OFFLINE"] = "1"
-                os.environ["TRANSFORMERS_OFFLINE"] = "1"
-        self._controlnet = self._controlnet.to(self._device)
-        self._controlnet_loaded_repo = repo
-        print(f"[JuggernautXL] ControlNet loaded ({repo}).")
-
     def generate(
         self,
         image_bytes: bytes,
@@ -235,16 +183,12 @@ class JuggernautXLGenerator(BaseGenerator):
         progress_cb: Optional[Callable[[int, str], None]] = None,
         cancel_event: Optional[threading.Event] = None,
     ) -> Path:
-        node_id = str(params.get("node_id", "generate")).lower()
+        mode = str(params.get("mode", "generate")).lower()
 
-        if node_id == "img2img":
+        if mode == "img2img":
             return self._generate_img2img(image_bytes, params, progress_cb, cancel_event)
-        elif node_id == "inpaint":
+        elif mode == "inpaint":
             return self._generate_inpaint(image_bytes, params, progress_cb, cancel_event)
-        elif node_id == "controlpose":
-            return self._generate_controlpose(image_bytes, params, progress_cb, cancel_event)
-        elif node_id == "depth2img":
-            return self._generate_depth2img(image_bytes, params, progress_cb, cancel_event)
 
         return self._generate_text2img(image_bytes, params, progress_cb, cancel_event)
 
@@ -392,7 +336,10 @@ class JuggernautXLGenerator(BaseGenerator):
             ),
         ).to(self._device)
         pipe.enable_attention_slicing()
-        pipe.enable_vae_slicing()
+        try:
+            pipe.enable_vae_slicing()
+        except AttributeError:
+            pass
 
         self._report(progress_cb, 15, "Editing image…")
         stop_evt = threading.Event()
@@ -482,7 +429,10 @@ class JuggernautXLGenerator(BaseGenerator):
             ),
         ).to(self._device)
         pipe.enable_attention_slicing()
-        pipe.enable_vae_slicing()
+        try:
+            pipe.enable_vae_slicing()
+        except AttributeError:
+            pass
 
         self._report(progress_cb, 15, "Inpainting…")
         stop_evt = threading.Event()
@@ -516,218 +466,6 @@ class JuggernautXLGenerator(BaseGenerator):
         self._report(progress_cb, 95, "Saving…")
         run = _modly_new_run_folder(self.outputs_dir)
         path = run / "inpainted.png"
-        image.save(str(path), "PNG")
-
-        self._report(progress_cb, 100, "Done")
-        return path
-
-    def _generate_controlpose(
-        self,
-        image_bytes: bytes,
-        params: dict,
-        progress_cb: Optional[Callable[[int, str], None]] = None,
-        cancel_event: Optional[threading.Event] = None,
-    ) -> Path:
-        import torch
-        from diffusers import StableDiffusionXLControlNetPipeline
-
-        if self._model is None:
-            self.load()
-
-        self._load_controlnet(_OPENPOSE_REPO)
-
-        prompt = str(params.get("prompt", ""))
-        negative_prompt = str(params.get("negative_prompt", ""))
-        cn_scale = min(float(params.get("controlnet_scale", 0.8)), 2.0)
-        num_steps = int(params.get("num_inference_steps", 30))
-        guidance_scale = min(float(params.get("guidance_scale", 7.0)), 20.0)
-        seed = int(params.get("seed", -1))
-        if seed == -1:
-            seed = random.randint(0, 2**32 - 1)
-
-        if not prompt:
-            raise ValueError("A text prompt is required.")
-
-        self._report(progress_cb, 5, "Preparing images…")
-        self._check_cancelled(cancel_event)
-
-        init_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
-        pose_path = params.get("pose_path") or params.get("image_path_2") or ""
-        if not pose_path or not Path(pose_path).exists():
-            raise ValueError("Pose transfer requires a pose reference image. Wire a second image into the node inputs.")
-        pose_image = Image.open(pose_path).convert("RGB")
-        if pose_image.size != init_image.size:
-            pose_image = pose_image.resize(init_image.size, Image.LANCZOS)
-
-        pipe = StableDiffusionXLControlNetPipeline(
-            vae=self._model.vae,
-            text_encoder=self._model.text_encoder,
-            text_encoder_2=self._model.text_encoder_2,
-            tokenizer=self._model.tokenizer,
-            tokenizer_2=self._model.tokenizer_2,
-            unet=self._model.unet,
-            controlnet=self._controlnet,
-            scheduler=self._model.scheduler,
-            image_encoder=getattr(self._model, "image_encoder", None),
-            feature_extractor=getattr(self._model, "feature_extractor", None),
-            force_zeros_for_pooled_projection=getattr(
-                self._model, "force_zeros_for_pooled_projection", False
-            ),
-        ).to(self._device)
-        if self._device == "cuda":
-            pipe.enable_attention_slicing()
-            try:
-                pipe.enable_model_cpu_offload()
-            except Exception:
-                pass
-
-        self._report(progress_cb, 15, "Generating with pose control…")
-        stop_evt = threading.Event()
-        if progress_cb:
-            t = threading.Thread(
-                target=smooth_progress,
-                args=(progress_cb, 15, 90, "Generating with pose control…", stop_evt),
-                daemon=True,
-            )
-            t.start()
-
-        try:
-            generator = torch.Generator(device=pipe.device).manual_seed(seed)
-            result = pipe(
-                prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                image=init_image,
-                control_image=pose_image,
-                controlnet_conditioning_scale=cn_scale,
-                num_inference_steps=num_steps,
-                guidance_scale=guidance_scale,
-                generator=generator,
-                output_type="pil",
-            )
-            image = result.images[0]
-        finally:
-            stop_evt.set()
-
-        self._check_cancelled(cancel_event)
-
-        self._report(progress_cb, 95, "Saving…")
-        run = _modly_new_run_folder(self.outputs_dir)
-        path = run / "pose_transfer.png"
-        image.save(str(path), "PNG")
-
-        self._report(progress_cb, 100, "Done")
-        return path
-
-    def _generate_depth2img(
-        self,
-        image_bytes: bytes,
-        params: dict,
-        progress_cb: Optional[Callable[[int, str], None]] = None,
-        cancel_event: Optional[threading.Event] = None,
-    ) -> Path:
-        import torch
-        from diffusers import StableDiffusionXLControlNetImg2ImgPipeline
-
-        if self._model is None:
-            self.load()
-
-        self._load_controlnet(_DEPTH_REPO)
-
-        prompt = str(params.get("prompt", ""))
-        negative_prompt = str(params.get("negative_prompt", ""))
-        strength = min(float(params.get("strength", 0.8)), 1.0)
-        cn_scale = min(float(params.get("controlnet_scale", 1.0)), 2.0)
-        num_steps = int(params.get("num_inference_steps", 30))
-        guidance_scale = min(float(params.get("guidance_scale", 7.0)), 20.0)
-        seed = int(params.get("seed", -1))
-        if seed == -1:
-            seed = random.randint(0, 2**32 - 1)
-
-        if not prompt:
-            raise ValueError("A text prompt is required for depth-guided editing.")
-
-        self._report(progress_cb, 5, "Preparing images…")
-        self._check_cancelled(cancel_event)
-
-        init_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
-        depth_path = params.get("depth_path") or params.get("image_path_2") or ""
-        if not depth_path or not Path(depth_path).exists():
-            raise ValueError("Depth-guided editing requires a depth map image. Wire a second image (depth map) into the node inputs.")
-        depth_raw = Image.open(depth_path)
-        if depth_raw.mode == "I;16" or depth_raw.mode == "I":
-            depth_arr = np.array(depth_raw, dtype=np.float32)
-        else:
-            depth_arr = np.array(depth_raw.convert("L"), dtype=np.float32)
-        dmin, dmax = depth_arr.min(), depth_arr.max()
-        if dmax > dmin:
-            depth_arr = (depth_arr - dmin) / (dmax - dmin) * 255.0
-        else:
-            depth_arr = np.zeros_like(depth_arr)
-        depth_control = Image.fromarray(depth_arr.astype(np.uint8), mode="L")
-        if depth_control.size != init_image.size:
-            depth_control = depth_control.resize(init_image.size, Image.LANCZOS)
-
-        # Invert depth: ControlNet expects black=far, white=near (DPT/MiDaS convention),
-        # but our pyrender depth maps have white=far, black=near.
-        depth_control = Image.eval(depth_control, lambda x: 255 - x)
-
-        pipe = StableDiffusionXLControlNetImg2ImgPipeline(
-            vae=self._model.vae,
-            text_encoder=self._model.text_encoder,
-            text_encoder_2=self._model.text_encoder_2,
-            tokenizer=self._model.tokenizer,
-            tokenizer_2=self._model.tokenizer_2,
-            unet=self._model.unet,
-            controlnet=self._controlnet,
-            scheduler=self._model.scheduler,
-            image_encoder=getattr(self._model, "image_encoder", None),
-            feature_extractor=getattr(self._model, "feature_extractor", None),
-            force_zeros_for_pooled_projection=getattr(
-                self._model, "force_zeros_for_pooled_projection", False
-            ),
-        ).to(self._device)
-        if self._device == "cuda":
-            pipe.enable_attention_slicing()
-            try:
-                pipe.enable_model_cpu_offload()
-            except Exception:
-                pass
-
-        self._report(progress_cb, 15, "Generating with depth control…")
-        stop_evt = threading.Event()
-        if progress_cb:
-            t = threading.Thread(
-                target=smooth_progress,
-                args=(progress_cb, 15, 90, "Generating with depth control…", stop_evt),
-                daemon=True,
-            )
-            t.start()
-
-        try:
-            generator = torch.Generator(device=pipe.device).manual_seed(seed)
-            result = pipe(
-                prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                image=init_image,
-                control_image=depth_control,
-                controlnet_conditioning_scale=cn_scale,
-                strength=strength,
-                num_inference_steps=num_steps,
-                guidance_scale=guidance_scale,
-                generator=generator,
-                output_type="pil",
-            )
-            image = result.images[0]
-        finally:
-            stop_evt.set()
-
-        self._check_cancelled(cancel_event)
-
-        self._report(progress_cb, 95, "Saving…")
-        run = _modly_new_run_folder(self.outputs_dir)
-        path = run / "depth_edit.png"
         image.save(str(path), "PNG")
 
         self._report(progress_cb, 100, "Done")
