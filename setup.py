@@ -118,37 +118,6 @@ def setup(
     print("[setup] Done. Venv ready at:", venv)
     print("[setup] Model weights are installed via Modly's model-download step.")
 
-    # Pre-download ControlNet models so runtime first-run isn't slow
-    print("[setup] Pre-downloading ControlNet models...")
-    _controlnet_repos = [
-        "lllyasviel/control_v11p_sd15_openpose",
-        "diffusers/controlnet-depth-sdxl-1.0-small",
-    ]
-    try:
-        from huggingface_hub import snapshot_download as _snapshot_download
-        _model_dir = Path(model_dir) if model_dir else (venv.parent.parent / "models")
-        # Generator looks for ControlNets at model_dir.parent / cn_name
-        # (e.g. models/juggernaut-xl/control_v11p_sd15_openpose)
-        _cn_base = _model_dir.parent if _model_dir.name == "generate" else _model_dir
-        for repo in _controlnet_repos:
-            cn_name = repo.split("/")[-1]
-            cn_dir = _cn_base / cn_name
-            if cn_dir.exists():
-                print(f"[setup] ControlNet {cn_name} already present, skipping.")
-                continue
-            print(f"[setup] Downloading {repo}...")
-            try:
-                _snapshot_download(
-                    repo_id=repo,
-                    local_dir=str(cn_dir),
-                    ignore_patterns=["*.md", "*.txt", "*.json", "*.yaml"],
-                )
-                print(f"[setup] ControlNet {cn_name} downloaded to {cn_dir}")
-            except Exception as e:
-                print(f"[setup] ControlNet {cn_name} download failed (will retry at runtime): {e}")
-    except ImportError:
-        print("[setup] huggingface_hub not available, skipping ControlNet pre-download.")
-
 
 if __name__ == "__main__":
     if len(sys.argv) >= 4:
