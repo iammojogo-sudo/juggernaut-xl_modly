@@ -16,9 +16,12 @@
   ],
   "nodes": [
     {
-      "id": "juggernaut",
+      "id": "generate",
       "name": "Juggernaut XL",
-      "inputs": ["image", "image"],
+      "inputs": [
+        "image",
+        "image"
+      ],
       "output": "image",
       "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
       "download_check": "unet/diffusion_pytorch_model.safetensors",
@@ -30,9 +33,18 @@
           "type": "select",
           "default": "generate",
           "options": [
-            { "value": "generate", "label": "Generate Image" },
-            { "value": "img2img", "label": "img2img (Edit with Prompt)" },
-            { "value": "inpaint", "label": "Inpaint (Background/Object Replace)" }
+            {
+              "value": "generate",
+              "label": "Generate Image"
+            },
+            {
+              "value": "img2img",
+              "label": "img2img (Edit with Prompt)"
+            },
+            {
+              "value": "inpaint",
+              "label": "Inpaint (Background/Object Replace)"
+            }
           ],
           "tooltip": "Generate: create from text. img2img: transform an existing image. Inpaint: replace masked areas."
         },
@@ -101,11 +113,26 @@
           "type": "select",
           "default": 30,
           "options": [
-            { "value": 20, "label": "20 (Fast)" },
-            { "value": 30, "label": "30 (Balanced)" },
-            { "value": 40, "label": "40 (High)" },
-            { "value": 50, "label": "50 (Maximum)" },
-            { "value": 100, "label": "100 (Overkill)" }
+            {
+              "value": 20,
+              "label": "20 (Fast)"
+            },
+            {
+              "value": 30,
+              "label": "30 (Balanced)"
+            },
+            {
+              "value": 40,
+              "label": "40 (High)"
+            },
+            {
+              "value": 50,
+              "label": "50 (Maximum)"
+            },
+            {
+              "value": 100,
+              "label": "100 (Overkill)"
+            }
           ],
           "tooltip": "DPM++ SDE Karras works best at 30-40 steps."
         },
@@ -125,9 +152,18 @@
           "type": "select",
           "default": 1024,
           "options": [
-            { "value": 512, "label": "512 (Fast)" },
-            { "value": 768, "label": "768 (Compact)" },
-            { "value": 1024, "label": "1024 (Native - Default)" }
+            {
+              "value": 512,
+              "label": "512 (Fast)"
+            },
+            {
+              "value": 768,
+              "label": "768 (Compact)"
+            },
+            {
+              "value": 1024,
+              "label": "1024 (Native - Default)"
+            }
           ],
           "tooltip": "SDXL generates natively at 1024. Generate mode only."
         },
@@ -137,9 +173,18 @@
           "type": "select",
           "default": "none",
           "options": [
-            { "value": "none", "label": "None (1x)" },
-            { "value": "2x", "label": "2x (2048)" },
-            { "value": "4x", "label": "4x (4096)" }
+            {
+              "value": "none",
+              "label": "None (1x)"
+            },
+            {
+              "value": "2x",
+              "label": "2x (2048)"
+            },
+            {
+              "value": "4x",
+              "label": "4x (4096)"
+            }
           ],
           "tooltip": "Upscale with Real-ESRGAN after generation. Generate mode only."
         },
@@ -149,10 +194,22 @@
           "type": "select",
           "default": "t_pose",
           "options": [
-            { "value": "t_pose", "label": "T-Pose" },
-            { "value": "a_pose", "label": "A-Pose" },
-            { "value": "neutral_standing", "label": "Neutral Standing" },
-            { "value": "none", "label": "None (Free)" }
+            {
+              "value": "t_pose",
+              "label": "T-Pose"
+            },
+            {
+              "value": "a_pose",
+              "label": "A-Pose"
+            },
+            {
+              "value": "neutral_standing",
+              "label": "Neutral Standing"
+            },
+            {
+              "value": "none",
+              "label": "None (Free)"
+            }
           ],
           "tooltip": "Forces a specific pose. Use T-pose or A-pose for multi-view consistency. Generate mode only."
         },
@@ -162,11 +219,26 @@
           "type": "select",
           "default": "none",
           "options": [
-            { "value": "none", "label": "None (Free)" },
-            { "value": "front", "label": "Front View" },
-            { "value": "right", "label": "Right Side" },
-            { "value": "back", "label": "Back View" },
-            { "value": "left", "label": "Left Side" }
+            {
+              "value": "none",
+              "label": "None (Free)"
+            },
+            {
+              "value": "front",
+              "label": "Front View"
+            },
+            {
+              "value": "right",
+              "label": "Right Side"
+            },
+            {
+              "value": "back",
+              "label": "Back View"
+            },
+            {
+              "value": "left",
+              "label": "Left Side"
+            }
           ],
           "tooltip": "Augments prompt with camera direction. Generate mode only."
         },
