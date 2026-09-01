@@ -331,9 +331,6 @@ class JuggernautXLGenerator(BaseGenerator):
             scheduler=self._model.scheduler,
             image_encoder=getattr(self._model, "image_encoder", None),
             feature_extractor=getattr(self._model, "feature_extractor", None),
-            force_zeros_for_pooled_projection=getattr(
-                self._model, "force_zeros_for_pooled_projection", False
-            ),
         ).to(self._device)
         pipe.enable_attention_slicing()
         try:
@@ -424,9 +421,6 @@ class JuggernautXLGenerator(BaseGenerator):
             scheduler=self._model.scheduler,
             image_encoder=getattr(self._model, "image_encoder", None),
             feature_extractor=getattr(self._model, "feature_extractor", None),
-            force_zeros_for_pooled_projection=getattr(
-                self._model, "force_zeros_for_pooled_projection", False
-            ),
         ).to(self._device)
         pipe.enable_attention_slicing()
         try:
