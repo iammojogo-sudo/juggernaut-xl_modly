@@ -111,7 +111,6 @@ class JuggernautXLGenerator(BaseGenerator):
             str(self.model_dir),
             torch_dtype=dtype,
             use_safetensors=True,
-            variant="fp16" if dtype == torch.float16 else None,
         )
         pipe.scheduler = DPMSolverMultistepScheduler.from_config(
             pipe.scheduler.config, use_karras_sigmas=True, algorithm_type="sde-dpmsolver++"
@@ -196,14 +195,14 @@ class JuggernautXLGenerator(BaseGenerator):
         try:
             if cn_dir.exists():
                 self._controlnet = ControlNetModel.from_pretrained(
-                    str(cn_dir), torch_dtype=self._dtype, use_safetensors=True, variant="fp16"
+                    str(cn_dir), torch_dtype=self._dtype, use_safetensors=True
                 )
             else:
                 import safetensors
                 os.environ.pop("HF_HUB_OFFLINE", None)
                 os.environ.pop("TRANSFORMERS_OFFLINE", None)
                 self._controlnet = ControlNetModel.from_pretrained(
-                    repo, torch_dtype=self._dtype, use_safetensors=True, variant="fp16"
+                    repo, torch_dtype=self._dtype, use_safetensors=True
                 )
                 os.environ["HF_HUB_OFFLINE"] = "1"
                 os.environ["TRANSFORMERS_OFFLINE"] = "1"

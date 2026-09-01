@@ -127,10 +127,12 @@ def setup(
     try:
         from huggingface_hub import snapshot_download as _snapshot_download
         _model_dir = Path(model_dir) if model_dir else (venv.parent.parent / "models")
+        # Generator looks for ControlNets at model_dir.parent / cn_name
+        # (e.g. models/juggernaut-xl/control_v11p_sd15_openpose)
+        _cn_base = _model_dir.parent if _model_dir.name == "generate" else _model_dir
         for repo in _controlnet_repos:
             cn_name = repo.split("/")[-1]
-            # Download alongside the main model so runtime _load_controlnet finds it
-            cn_dir = _model_dir / cn_name
+            cn_dir = _cn_base / cn_name
             if cn_dir.exists():
                 print(f"[setup] ControlNet {cn_name} already present, skipping.")
                 continue

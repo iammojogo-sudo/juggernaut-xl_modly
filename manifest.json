@@ -20,7 +20,7 @@
       "name": "Generate Image",
       "output": "image",
       "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
-      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "download_check": "unet/diffusion_pytorch_model.safetensors",
       "hf_skip_prefixes": [],
       "params_schema": [
         {
@@ -221,7 +221,7 @@
       "input": "image",
       "output": "image",
       "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
-      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "download_check": "unet/diffusion_pytorch_model.safetensors",
       "hf_skip_prefixes": [],
       "params_schema": [
         {
@@ -296,7 +296,7 @@
       ],
       "output": "image",
       "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
-      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "download_check": "unet/diffusion_pytorch_model.safetensors",
       "hf_skip_prefixes": [],
       "params_schema": [
         {
@@ -370,7 +370,7 @@
       ],
       "output": "image",
       "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
-      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "download_check": "unet/diffusion_pytorch_model.safetensors",
       "hf_skip_prefixes": [],
       "params_schema": [
         {
@@ -445,7 +445,7 @@
       ],
       "output": "image",
       "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
-      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "download_check": "unet/diffusion_pytorch_model.safetensors",
       "hf_skip_prefixes": [],
       "params_schema": [
         {
