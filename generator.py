@@ -118,7 +118,10 @@ class JuggernautXLGenerator(BaseGenerator):
 
         if device == "cuda":
             pipe.enable_attention_slicing()
-            pipe.enable_vae_slicing()
+            try:
+                pipe.enable_vae_slicing()
+            except AttributeError:
+                pass
             # Attempt xformers memory-efficient attention. In this venv xformers
             # is not installed, so this is a no-op that falls back to PyTorch's
             # built-in SDPA (also memory-efficient). If xformers is added later
