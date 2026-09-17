@@ -106,6 +106,7 @@ class JuggernautXLGenerator(BaseGenerator):
             str(self.model_dir),
             torch_dtype=dtype,
             use_safetensors=True,
+            variant="fp16",
         )
         pipe.scheduler = DPMSolverMultistepScheduler.from_config(
             pipe.scheduler.config, use_karras_sigmas=True, algorithm_type="sde-dpmsolver++"
