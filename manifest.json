@@ -3,255 +3,39 @@
   "name": "Juggernaut XL",
   "type": "model",
   "source": "https://github.com/iammojogo-sudo/juggernaut-xl_modly",
-  "description": "Juggernaut XL v9 — the world's most-downloaded SDXL model, purpose-built for photorealism and accurate prompt adherence. 6M+ downloads.",
-  "version": "1.0.0",
+  "description": "Juggernaut XL v9, a general-purpose SDXL image generator for creating and editing images.",
+  "version": "1.1.0",
   "author": "iammojogo",
   "generator_class": "JuggernautXLGenerator",
-  "tags": [
-    "text-to-image",
-    "sdxl",
-    "game-assets",
-    "characters",
-    "commercial-safe"
-  ],
-  "nodes": [
-    {
-      "id": "generate",
-      "name": "Juggernaut XL",
-      "inputs": [
-        "image",
-        "image"
-      ],
-      "output": "image",
-      "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
-      "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
-      "hf_skip_prefixes": [],
-      "params_schema": [
-        {
-          "id": "mode",
-          "label": "Mode",
-          "type": "select",
-          "default": "generate",
-          "options": [
-            {
-              "value": "generate",
-              "label": "Generate Image"
-            },
-            {
-              "value": "img2img",
-              "label": "img2img (Edit with Prompt)"
-            },
-            {
-              "value": "inpaint",
-              "label": "Inpaint (Background/Object Replace)"
-            }
-          ],
-          "tooltip": "Generate: create from text. img2img: transform an existing image. Inpaint: replace masked areas."
-        },
-        {
-          "id": "prompt",
-          "label": "Prompt",
-          "type": "string",
-          "default": "",
-          "tooltip": "Describe what to generate or how to edit."
-        },
-        {
-          "id": "v1",
-          "label": "[Generate] Physical Profile Details",
-          "type": "string",
-          "default": "",
-          "tooltip": "Body type, frame, proportions. Generate mode only."
-        },
-        {
-          "id": "v2",
-          "label": "[Generate] Material Surface Ideas",
-          "type": "string",
-          "default": "",
-          "tooltip": "Skin, armor, fabric, or surface finish. Generate mode only."
-        },
-        {
-          "id": "v3",
-          "label": "[Generate] Wear and Tear State",
-          "type": "string",
-          "default": "",
-          "tooltip": "Condition, weathering, damage. Generate mode only."
-        },
-        {
-          "id": "v4",
-          "label": "[Generate] Target Art Style",
-          "type": "string",
-          "default": "",
-          "tooltip": "Photorealistic, stylized, etc. Generate mode only."
-        },
-        {
-          "id": "v5",
-          "label": "[Generate] Color Theme",
-          "type": "string",
-          "default": "",
-          "tooltip": "Palette, color scheme, mood. Generate mode only."
-        },
-        {
-          "id": "strength",
-          "label": "[img2img/Inpaint] Edit Strength",
-          "type": "number",
-          "default": 0.75,
-          "min": 0,
-          "max": 1,
-          "step": 0.05,
-          "tooltip": "How much to change the image. 0 = no change, 1 = fully regenerate. Lower = more subtle."
-        },
-        {
-          "id": "negative_prompt",
-          "label": "Negative Prompt",
-          "type": "string",
-          "default": "",
-          "tooltip": "Things to avoid. Juggernaut XL works best with minimal or no negative prompt."
-        },
-        {
-          "id": "num_inference_steps",
-          "label": "Quality Steps",
-          "type": "select",
-          "default": 30,
-          "options": [
-            {
-              "value": 20,
-              "label": "20 (Fast)"
-            },
-            {
-              "value": 30,
-              "label": "30 (Balanced)"
-            },
-            {
-              "value": 40,
-              "label": "40 (High)"
-            },
-            {
-              "value": 50,
-              "label": "50 (Maximum)"
-            },
-            {
-              "value": 100,
-              "label": "100 (Overkill)"
-            }
-          ],
-          "tooltip": "DPM++ SDE Karras works best at 30-40 steps."
-        },
-        {
-          "id": "guidance_scale",
-          "label": "Prompt Guidance",
-          "type": "number",
-          "default": 7,
-          "min": 1,
-          "max": 30,
-          "step": 0.5,
-          "tooltip": "3-7 is standard. Higher = stricter prompt adherence, lower = more creative."
-        },
-        {
-          "id": "resolution",
-          "label": "[Generate] Output Resolution",
-          "type": "select",
-          "default": 1024,
-          "options": [
-            {
-              "value": 512,
-              "label": "512 (Fast)"
-            },
-            {
-              "value": 768,
-              "label": "768 (Compact)"
-            },
-            {
-              "value": 1024,
-              "label": "1024 (Native - Default)"
-            }
-          ],
-          "tooltip": "SDXL generates natively at 1024. Generate mode only."
-        },
-        {
-          "id": "upscale",
-          "label": "[Generate] Upscale Output",
-          "type": "select",
-          "default": "none",
-          "options": [
-            {
-              "value": "none",
-              "label": "None (1x)"
-            },
-            {
-              "value": "2x",
-              "label": "2x (2048)"
-            },
-            {
-              "value": "4x",
-              "label": "4x (4096)"
-            }
-          ],
-          "tooltip": "Upscale with Real-ESRGAN after generation. Generate mode only."
-        },
-        {
-          "id": "pose",
-          "label": "[Generate] Subject Pose",
-          "type": "select",
-          "default": "t_pose",
-          "options": [
-            {
-              "value": "t_pose",
-              "label": "T-Pose"
-            },
-            {
-              "value": "a_pose",
-              "label": "A-Pose"
-            },
-            {
-              "value": "neutral_standing",
-              "label": "Neutral Standing"
-            },
-            {
-              "value": "none",
-              "label": "None (Free)"
-            }
-          ],
-          "tooltip": "Forces a specific pose. Use T-pose or A-pose for multi-view consistency. Generate mode only."
-        },
-        {
-          "id": "camera_view",
-          "label": "[Generate] Camera View",
-          "type": "select",
-          "default": "none",
-          "options": [
-            {
-              "value": "none",
-              "label": "None (Free)"
-            },
-            {
-              "value": "front",
-              "label": "Front View"
-            },
-            {
-              "value": "right",
-              "label": "Right Side"
-            },
-            {
-              "value": "back",
-              "label": "Back View"
-            },
-            {
-              "value": "left",
-              "label": "Left Side"
-            }
-          ],
-          "tooltip": "Augments prompt with camera direction. Generate mode only."
-        },
-        {
-          "id": "seed",
-          "label": "Seed",
-          "type": "int",
-          "default": -1,
-          "min": -1,
-          "max": 2147483647,
-          "tooltip": "Random seed (-1 for random)."
-        }
-      ]
-    }
-  ]
+  "tags": ["text-to-image", "image-to-image", "inpainting", "sdxl", "commercial-safe"],
+  "nodes": [{
+    "id": "generate",
+    "name": "Juggernaut XL",
+    "inputs": ["image", "image"],
+    "output": "image",
+    "hf_repo": "RunDiffusion/Juggernaut-XL-v9",
+    "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
+    "hf_skip_prefixes": [],
+    "params_schema": [
+      {
+        "id": "mode",
+        "label": "Mode",
+        "type": "select",
+        "default": "generate",
+        "options": [
+          {"value": "generate", "label": "Generate Image"},
+          {"value": "img2img", "label": "Edit Image"},
+          {"value": "inpaint", "label": "Inpaint Image"}
+        ],
+        "tooltip": "Create a new image, edit a connected image, or replace a masked area."
+      },
+      {
+        "id": "prompt",
+        "label": "Prompt",
+        "type": "string",
+        "default": "",
+        "tooltip": "Describe the image to create or the changes to make."
+      }
+    ]
+  }]
 }

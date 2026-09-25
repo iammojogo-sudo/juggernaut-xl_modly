@@ -1,5 +1,4 @@
 import io
-import random
 import sys
 import os
 import time
@@ -9,8 +8,6 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from PIL import Image
-
-import numpy as np
 
 from services.generators.base import BaseGenerator, smooth_progress, GenerationCancelled
 
@@ -60,6 +57,18 @@ def _modly_current_run_folder(outputs_dir, params=None, input_path=None):
 
 
 _HF_REPO_ID = "RunDiffusion/Juggernaut-XL-v9"
+
+_PLACEHOLDER_PATH = Path(__file__).parent / "placeholder.png"
+
+
+def _placeholder_image_bytes() -> bytes:
+    """1x1 image used when no input image is wired into the node."""
+    try:
+        return _PLACEHOLDER_PATH.read_bytes()
+    except OSError:
+        buf = io.BytesIO()
+        Image.new("RGB", (1, 1), (0, 0, 0)).save(buf, "PNG")
+        return buf.getvalue()
 
 
 class JuggernautXLGenerator(BaseGenerator):
@@ -184,6 +193,11 @@ class JuggernautXLGenerator(BaseGenerator):
         progress_cb: Optional[Callable[[int, str], None]] = None,
         cancel_event: Optional[threading.Event] = None,
     ) -> Path:
+        # No image wired into the node? Fall back to the bundled 1x1
+        # placeholder so image-consuming modes still run instead of failing.
+        if not image_bytes:
+            image_bytes = _placeholder_image_bytes()
+
         mode = str(params.get("mode", "generate")).lower()
 
         if mode == "img2img":
@@ -205,48 +219,17 @@ class JuggernautXLGenerator(BaseGenerator):
         if self._model is None:
             self.load()
 
-        v_keys          = ["v1", "v2", "v3", "v4", "v5"]
-        parts           = [str(params.get(k, "")).strip() for k in v_keys if str(params.get(k, "")).strip()]
-        pose = str(params.get("pose", "t_pose"))
-        POSE_SUFFIXES = {
-            "t_pose":            "t pose, arms straight out to sides parallel to ground, symmetrical",
-            "a_pose":            "a pose, arms slightly lowered at 45 degrees, relaxed shoulders, symmetrical",
-            "neutral_standing":  "neutral standing pose, arms at sides, relaxed posture",
-            "none":              "",
-        }
-        pose_suffix = POSE_SUFFIXES.get(pose, "")
-        if parts:
-            prompt      = ", ".join(parts) + ", full figure, isolated on a solid background"
-            if pose_suffix:
-                prompt += ", " + pose_suffix
-        else:
-            prompt      = str(params.get("prompt", ""))
-        negative_prompt = str(params.get("negative_prompt", ""))
-        num_steps       = int(params.get("num_inference_steps", 30))
-        guidance_scale  = min(float(params.get("guidance_scale", 7.0)), 30.0)
-        resolution      = int(params.get("resolution", 1024))
-        upscale         = str(params.get("upscale", "none"))
-        seed            = int(params.get("seed", -1))
-        if seed == -1:
-            seed = random.randint(0, 2**32 - 1)
-        width           = resolution
-        height          = resolution
+        prompt = str(params.get("prompt", "")).strip()
+        # Keep sampler settings stable so the node stays simple to use.
+        num_steps = 30
+        guidance_scale = 7.0
+        width = height = 1024
 
         if not prompt:
             raise ValueError("A text prompt is required for generation.")
 
         self._report(progress_cb, 5, "Preparing generation…")
         self._check_cancelled(cancel_event)
-
-        camera_view = str(params.get("camera_view", "none"))
-        CAMERA_SUFFIXES = {
-            "none": "",
-            "front": ", front view, facing camera, centered, symmetrical",
-            "right": ", right side view, facing right, profile",
-            "back": ", back view, viewed from behind, facing away, rear",
-            "left": ", left side view, facing left, profile",
-        }
-        camera_suffix = CAMERA_SUFFIXES.get(camera_view, "")
 
         self._report(progress_cb, 15, "Generating image…")
         stop_evt = threading.Event()
@@ -259,16 +242,12 @@ class JuggernautXLGenerator(BaseGenerator):
             t.start()
 
         try:
-            generator = torch.Generator(device=self._model.device).manual_seed(seed)
-
             result = self._model(
-                prompt=prompt + camera_suffix,
-                negative_prompt=negative_prompt if negative_prompt else None,
+                prompt=prompt,
                 num_inference_steps=num_steps,
                 guidance_scale=guidance_scale,
                 width=width,
                 height=height,
-                generator=generator,
                 output_type="pil",
             )
             image = result.images[0]
@@ -278,11 +257,6 @@ class JuggernautXLGenerator(BaseGenerator):
         self._check_cancelled(cancel_event)
 
         self.unload()
-
-        if upscale in ("2x", "4x"):
-            scale = 2 if upscale == "2x" else 4
-            self._report(progress_cb, 92, f"Upscaling {upscale}…")
-            image = self._upscale_image(image, scale)
 
         self._report(progress_cb, 95, "Saving image…")
         run = _modly_new_run_folder(self.outputs_dir)
@@ -305,14 +279,10 @@ class JuggernautXLGenerator(BaseGenerator):
         if self._model is None:
             self.load()
 
-        prompt = str(params.get("prompt", ""))
-        negative_prompt = str(params.get("negative_prompt", ""))
-        strength = min(float(params.get("strength", 0.7)), 1.0)
-        num_steps = int(params.get("num_inference_steps", 30))
-        guidance_scale = min(float(params.get("guidance_scale", 7.0)), 20.0)
-        seed = int(params.get("seed", -1))
-        if seed == -1:
-            seed = random.randint(0, 2**32 - 1)
+        prompt = str(params.get("prompt", "")).strip()
+        strength = 0.7
+        num_steps = 30
+        guidance_scale = 7.0
 
         if not prompt:
             raise ValueError("A text prompt is required.")
@@ -350,15 +320,12 @@ class JuggernautXLGenerator(BaseGenerator):
             t.start()
 
         try:
-            generator = torch.Generator(device=pipe.device).manual_seed(seed)
             result = pipe(
                 prompt=prompt,
                 image=init_image,
                 strength=strength,
                 num_inference_steps=num_steps,
                 guidance_scale=guidance_scale,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                generator=generator,
                 output_type="pil",
             )
             image = result.images[0]
@@ -388,14 +355,10 @@ class JuggernautXLGenerator(BaseGenerator):
         if self._model is None:
             self.load()
 
-        prompt = str(params.get("prompt", ""))
-        negative_prompt = str(params.get("negative_prompt", ""))
-        strength = min(float(params.get("strength", 0.95)), 1.0)
-        num_steps = int(params.get("num_inference_steps", 30))
-        guidance_scale = min(float(params.get("guidance_scale", 7.5)), 20.0)
-        seed = int(params.get("seed", -1))
-        if seed == -1:
-            seed = random.randint(0, 2**32 - 1)
+        prompt = str(params.get("prompt", "")).strip()
+        strength = 0.95
+        num_steps = 30
+        guidance_scale = 7.5
 
         if not prompt:
             raise ValueError("A text prompt is required for inpainting.")
@@ -440,7 +403,6 @@ class JuggernautXLGenerator(BaseGenerator):
             t.start()
 
         try:
-            generator = torch.Generator(device=pipe.device).manual_seed(seed)
             result = pipe(
                 prompt=prompt,
                 image=init_image,
@@ -448,8 +410,6 @@ class JuggernautXLGenerator(BaseGenerator):
                 strength=strength,
                 num_inference_steps=num_steps,
                 guidance_scale=guidance_scale,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                generator=generator,
                 output_type="pil",
             )
             image = result.images[0]
@@ -466,203 +426,26 @@ class JuggernautXLGenerator(BaseGenerator):
         self._report(progress_cb, 100, "Done")
         return path
 
-    def _upscale_image(self, image: "Image.Image", scale: int) -> "Image.Image":
-        """Upscale with Real-ESRGAN (real detail) falling back to LANCZOS.
-
-        Real-ESRGAN is loaded fresh here (after SDXL was unloaded) and freed
-        immediately so it never co-resides with the diffusion model on GPU.
-        """
-        import torch
-
-        try:
-            from basicsr.archs.rrdbnet_arch import RRDBNet
-            from realesrgan import RealESRGANer
-
-            # Pre-downloaded weights live under Modly's models/ folder so this
-            # works fully offline (Real-ESRGAN would otherwise fetch from GitHub).
-            _model_dir = Path(self.model_dir) if getattr(self, "model_dir", None) else Path(".")
-            _weight_name = "realesrgan-x4plus.pth" if scale == 4 else "realesrgan-x2plus.pth"
-            _weight_path = _model_dir / _weight_name
-            if not _weight_path.exists():
-                # Fall back to the package's own download location if present.
-                _weight_path = Path(__file__).parent / _weight_name
-
-            if not _weight_path.exists():
-                raise FileNotFoundError(f"Real-ESRGAN weights not found: {_weight_path}")
-
-            _nf, _nb = (64, 23) if scale == 4 else (64, 23)
-            _model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=_nf,
-                             num_block=_nb, num_grow_ch=32, scale=scale)
-            _use_half = torch.cuda.is_available()
-            _upsampler = RealESRGANer(
-                scale=scale,
-                model_path=str(_weight_path),
-                model=_model,
-                tile=0,
-                tile_pad=10,
-                pre_pad=0,
-                half=_use_half,
-            )
-            import numpy as np
-            _img_np = np.array(image)
-            try:
-                _output, _ = _upsampler.enhance(_img_np, outscale=scale)
-            finally:
-                del _upsampler, _model
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            return Image.fromarray(_output)
-        except Exception as _e:
-            print(f"[JuggernautXL] Real-ESRGAN unavailable ({_e}); using LANCZOS {scale}x")
-            return image.resize((image.width * scale, image.height * scale), Image.LANCZOS)
-
     @classmethod
     def params_schema(cls) -> list:
         return [
             {
-                "id":      "v1",
-                "label":   "Physical Profile Details",
-                "type":    "string",
-                "default": "",
-                "tooltip": "Body type, frame, proportions.",
-            },
-            {
-                "id":      "v2",
-                "label":   "Material Surface Ideas",
-                "type":    "string",
-                "default": "",
-                "tooltip": "Skin, armor, fabric, or surface finish.",
-            },
-            {
-                "id":      "v3",
-                "label":   "Wear and Tear State",
-                "type":    "string",
-                "default": "",
-                "tooltip": "Condition, weathering, damage.",
-            },
-            {
-                "id":      "v4",
-                "label":   "Target Art Style",
-                "type":    "string",
-                "default": "",
-                "tooltip": "Photorealistic, stylized, etc.",
-            },
-            {
-                "id":      "v5",
-                "label":   "Color Theme",
-                "type":    "string",
-                "default": "",
-                "tooltip": "Palette, color scheme, mood.",
-            },
-            {
-                "id":      "negative_prompt",
-                "label":   "Negative Prompt",
-                "type":    "string",
-                "default": "",
-                "tooltip": "Optional. Juggernaut XL works best with minimal or no negative prompt.",
-            },
-            {
-                "id":      "num_inference_steps",
-                "label":   "Quality Steps",
-                "type":    "select",
-                "default": 30,
+                "id": "mode",
+                "label": "Mode",
+                "type": "select",
+                "default": "generate",
                 "options": [
-                    {"value": 20, "label": "20 (Fast)"},
-                    {"value": 30, "label": "30 (Balanced)"},
-                    {"value": 40, "label": "40 (High)"},
-                    {"value": 50, "label": "50 (Maximum)"},
+                    {"value": "generate", "label": "Generate Image"},
+                    {"value": "img2img", "label": "Edit Image"},
+                    {"value": "inpaint", "label": "Inpaint Image"},
                 ],
-                "tooltip": "DPM++ SDE Karras works best at 30-40 steps.",
+                "tooltip": "Create a new image, edit a connected image, or replace a masked area.",
             },
             {
-                "id":      "guidance_scale",
-                "label":   "Prompt Guidance",
-                "type":    "float",
-                "default": 7.0,
-                "min":     1.0,
-                "max":     30.0,
-                "step":    0.5,
-                "tooltip": "3-7 is standard. Higher = stricter prompt adherence, lower = more creative.",
-            },
-
-            {
-                "id":      "resolution",
-                "label":   "Output Resolution",
-                "type":    "select",
-                "default": 1024,
-                "options": [
-                    {"value": 512,  "label": "512 (Fast)"},
-                    {"value": 768,  "label": "768 (Compact)"},
-                    {"value": 1024, "label": "1024 (Native - Default)"},
-                ],
-                "tooltip": "SDXL generates natively at 1024. Higher resolutions are produced by upscaling afterward.",
-            },
-            {
-                "id":      "upscale",
-                "label":   "Upscale Output",
-                "type":    "select",
-                "default": "none",
-                "options": [
-                    {"value": "none", "label": "None (1x)"},
-                    {"value": "2x",   "label": "2x (2048)"},
-                    {"value": "4x",   "label": "4x (4096)"},
-                ],
-                "tooltip": "Upscale after generation with Real-ESRGAN. 4x reaches 4096px. Falls back to smooth resize if unavailable.",
-            },
-            {
-                "id":      "pose",
-                "label":   "Subject Pose",
-                "type":    "select",
-                "default": "t_pose",
-                "options": [
-                    {"value": "t_pose",            "label": "T-Pose"},
-                    {"value": "a_pose",            "label": "A-Pose"},
-                    {"value": "neutral_standing",  "label": "Neutral Standing"},
-                    {"value": "none",              "label": "None (Free)"},
-                ],
-                "tooltip": "Forces a specific pose. Use T-pose or A-pose for multi-view consistency.",
-            },
-            {
-                "id":      "camera_view",
-                "label":   "Camera View",
-                "type":    "select",
-                "default": "none",
-                "options": [
-                    {"value": "none", "label": "None (Free)"},
-                    {"value": "front", "label": "Front View"},
-                    {"value": "right", "label": "Right Side"},
-                    {"value": "back", "label": "Back View"},
-                    {"value": "left", "label": "Left Side"},
-                ],
-                "tooltip": "Augments prompt with camera direction for consistent Zero123++ input.",
-            },
-            {
-                "id":      "seed",
-                "label":   "Seed",
-                "type":    "int",
-                "default": -1,
-                "min":     -1,
-                "max":     2147483647,
-                "tooltip": "Random seed (-1 for random).",
-            },
-            {
-                "id":      "strength",
-                "label":   "Edit Strength",
-                "type":    "float",
-                "default": 0.7,
-                "min":     0.0,
-                "max":     1.0,
-                "step":    0.05,
-                "tooltip": "How much to change the image. 0 = no change, 1 = fully regenerate.",
-            },
-            {
-                "id":      "controlnet_scale",
-                "label":   "Pose Influence",
-                "type":    "float",
-                "default": 0.8,
-                "min":     0.0,
-                "max":     2.0,
-                "step":    0.05,
-                "tooltip": "How strongly the pose reference affects output (Pose Transfer node).",
+                "id": "prompt",
+                "label": "Prompt",
+                "type": "string",
+                "default": "",
+                "tooltip": "Describe the image to create or the changes to make.",
             },
         ]
