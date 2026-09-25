@@ -3,7 +3,8 @@
 Juggernaut XL v9 makes photorealistic images. This extension adds three nodes:
 
 - **Juggernaut XL** — make a new image from text.
-- **Juggernaut XL Edit** — change an image you already have.
+- **Juggernaut XL Restyle** — redraw a whole image from a prompt. It does not
+  keep parts unchanged.
 - **Juggernaut XL Inpaint** — replace part of an image.
 
 All three use the same model files. You only download the model once.
@@ -39,14 +40,19 @@ Now you can use the nodes.
 
 You don't have to connect anything.
 
-### Edit an image
+### Restyle an image
 
-1. Add the **Juggernaut XL Edit** node.
+This node redraws the **whole** image from your prompt. It cannot keep parts of
+the image unchanged. If you only want to change one area, use Inpaint instead.
+
+1. Add the **Juggernaut XL Restyle** node.
 2. Connect your image to it.
-3. Type what to change in the **Prompt** box.
-4. Use **Edit Strength** to pick how much changes:
-   - Low (0.3–0.5) keeps most of the original.
+3. Type a prompt that describes the whole picture you want.
+4. Use **Restyle Strength** to pick how much changes:
+   - Low (0.3–0.5) stays closer to the original.
    - High (0.6–0.8) changes more.
+
+Even at low strength the whole image is redrawn, so small details can shift.
 
 ### Inpaint an image
 
@@ -69,6 +75,24 @@ mask, the node tells you it needs one.
 - Leave the **Negative Prompt** empty to start. This model does better without
   long negative prompts.
 - If you run out of memory, use a smaller image.
+
+## FAQ
+
+**Why did my restyle change everything?**
+The Restyle node redraws the whole image. It can't keep parts of the image the
+same, even if your prompt says to.
+
+**How do I change just one thing, like the sky?**
+Use **Inpaint**. Make a mask that is white on the part you want to change and
+black everywhere else. Only the white part changes.
+
+**Why can't I say "keep everything the same"?**
+The model uses your prompt for the whole picture. It has no way to attach words
+to specific spots, so that instruction does nothing.
+
+**How do I remove a background?**
+Use the **Image Editor → Remove Background** node. It is made for that, and it
+keeps the subject exactly the same.
 
 ## Troubleshooting
 
