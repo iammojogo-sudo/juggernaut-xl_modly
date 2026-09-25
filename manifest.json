@@ -4,7 +4,7 @@
   "type": "model",
   "source": "https://github.com/iammojogo-sudo/juggernaut-xl_modly",
   "description": "Juggernaut XL v9 — a photorealistic SDXL model. Create an image from text, restyle a whole image, or inpaint a masked area. All three nodes share one set of weights.",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "author": "iammojogo",
   "generator_class": "JuggernautXLGenerator",
   "tags": ["text-to-image", "image-to-image", "inpainting", "sdxl", "photorealistic", "commercial-safe"],
@@ -146,6 +146,63 @@
       ]
     },
     {
+      "id": "segment",
+      "name": "Select by Text",
+      "input": "image",
+      "output": "image",
+      "hf_repo": "CIDAS/clipseg-rd64-refined",
+      "download_check": "model.safetensors",
+      "hf_skip_prefixes": ["pytorch_model.bin"],
+      "params_schema": [
+        {
+          "id": "region",
+          "label": "What to select",
+          "type": "string",
+          "default": "",
+          "tooltip": "Type the part of the image to select, for example 'sky' or 'the bicycle'. The node outputs a white-on-black mask image."
+        },
+        {
+          "id": "threshold",
+          "label": "Threshold",
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 0.95,
+          "step": 0.05,
+          "tooltip": "Higher = smaller, stricter selection. Lower = larger, looser selection."
+        },
+        {
+          "id": "invert",
+          "label": "Invert",
+          "type": "select",
+          "default": "no",
+          "options": [
+            {"value": "no", "label": "No (select that part)"},
+            {"value": "yes", "label": "Yes (select everything else)"}
+          ],
+          "tooltip": "Invert the mask. Useful to keep the subject and replace the background."
+        },
+        {
+          "id": "expand",
+          "label": "Expand (px)",
+          "type": "int",
+          "default": 8,
+          "min": 0,
+          "max": 64,
+          "tooltip": "Grow the mask a little so edges don't leave seams."
+        },
+        {
+          "id": "feather",
+          "label": "Feather (px)",
+          "type": "int",
+          "default": 4,
+          "min": 0,
+          "max": 32,
+          "tooltip": "Soften the mask edge."
+        }
+      ]
+    },
+    {
       "id": "inpaint",
       "name": "Juggernaut XL Inpaint",
       "inputs": ["image", "image"],
@@ -155,6 +212,18 @@
       "download_check": "unet/diffusion_pytorch_model.fp16.safetensors",
       "hf_skip_prefixes": [],
       "params_schema": [
+        {
+          "id": "mask_source",
+          "label": "Mask Source",
+          "type": "select",
+          "default": "connected",
+          "options": [
+            {"value": "connected", "label": "Connected mask"},
+            {"value": "alpha_subject", "label": "Transparency: replace subject"},
+            {"value": "alpha_background", "label": "Transparency: replace background"}
+          ],
+          "tooltip": "Where the mask comes from. 'Connected mask' uses the second image input. The transparency options use an image with a see-through area (for example the output of Remove Background)."
+        },
         {
           "id": "prompt",
           "label": "Prompt",

@@ -129,12 +129,6 @@ class JuggernautXLGenerator(BaseGenerator):
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
         import torch
-        from diffusers import (
-            AutoPipelineForText2Image,
-            StableDiffusionXLImg2ImgPipeline,
-            StableDiffusionXLInpaintPipeline,
-            DPMSolverMultistepScheduler,
-        )
 
         if sys.platform == "darwin":
             device = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -144,6 +138,22 @@ class JuggernautXLGenerator(BaseGenerator):
             dtype = torch.float16 if device == "cuda" else torch.float32
 
         node = self._node_id()
+
+        # The "segment" node runs CLIPSeg, not SDXL — no diffusers pipeline.
+        if node == "segment":
+            self._load_clipseg(device)
+            self._device = device
+            self._dtype = torch.float32
+            print(f"[JuggernautXL] Loaded 'segment' on {device}.")
+            return
+
+        from diffusers import (
+            AutoPipelineForText2Image,
+            StableDiffusionXLImg2ImgPipeline,
+            StableDiffusionXLInpaintPipeline,
+            DPMSolverMultistepScheduler,
+        )
+
         base = str(self._base_model_dir())
         load_kwargs = dict(
             torch_dtype=dtype,
@@ -215,6 +225,18 @@ class JuggernautXLGenerator(BaseGenerator):
         self._dtype = dtype
         print(f"[JuggernautXL] Loaded '{node or 'generate'}' on {device}.")
 
+    def _load_clipseg(self, device: str) -> None:
+        """Loads CLIPSeg for the 'segment' node (text-guided masking, ~600MB)."""
+        from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
+
+        base = str(self._base_model_dir())
+        print(f"[JuggernautXL] Loading CLIPSeg from {base}…")
+        processor = CLIPSegProcessor.from_pretrained(base)
+        model = CLIPSegForImageSegmentation.from_pretrained(base)
+        model.eval()
+        model = model.to(device)
+        self._model = (processor, model)
+
     def unload(self) -> None:
         super().unload()
         try:
@@ -243,6 +265,8 @@ class JuggernautXLGenerator(BaseGenerator):
             image_bytes = _placeholder_image_bytes()
 
         node = self._node_id()
+        if node == "segment":
+            return self._generate_segment(image_bytes, params, progress_cb, cancel_event)
         if node in ("edit", "img2img"):
             return self._generate_img2img(image_bytes, params, progress_cb, cancel_event)
         if node == "inpaint":
@@ -289,6 +313,72 @@ class JuggernautXLGenerator(BaseGenerator):
             )
             t.start()
         return stop_evt
+
+    def _generate_segment(self, image_bytes, params, progress_cb=None, cancel_event=None) -> Path:
+        """CLIPSeg: turn a text description into a white-on-black mask image."""
+        import numpy as np
+        import torch
+
+        if self._model is None:
+            self.load()
+        processor, model = self._model
+
+        region = str(params.get("region", "")).strip()
+        if not region:
+            raise ValueError("Type what to select (for example 'sky' or 'the bicycle').")
+        threshold = min(max(self._num(params, "threshold", 0.5), 0.05), 0.95)
+        invert = str(params.get("invert", "no")).lower() in ("yes", "true", "1", "on")
+        expand = max(0, int(self._num(params, "expand", 8)))
+        feather = max(0, int(self._num(params, "feather", 4)))
+
+        self._report(progress_cb, 10, "Preparing image…")
+        self._check_cancelled(cancel_event)
+
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+        self._report(progress_cb, 25, f"Finding '{region}'…")
+        stop_evt = self._run_progress(progress_cb, 25, 80, f"Finding '{region}'…")
+        try:
+            inputs = processor(text=[region], images=[image], padding=True, return_tensors="pt")
+            inputs = {k: v.to(self._device) for k, v in inputs.items()}
+            with torch.no_grad():
+                logits = model(**inputs).logits
+            probs = torch.sigmoid(logits).detach().float().cpu()
+            while probs.dim() > 2:
+                probs = probs[0]
+            prob_img = Image.fromarray((probs.numpy() * 255).astype("uint8"), mode="L")
+            prob_map = np.asarray(
+                prob_img.resize(image.size, Image.LANCZOS), dtype=np.float32
+            ) / 255.0
+        finally:
+            stop_evt.set()
+
+        self._check_cancelled(cancel_event)
+
+        self._report(progress_cb, 85, "Building mask…")
+        mask = prob_map >= threshold
+        if invert:
+            mask = ~mask
+        if expand > 0:
+            from scipy import ndimage
+            mask = ndimage.binary_dilation(mask, iterations=expand)
+        if feather > 0:
+            from scipy import ndimage
+            soft = ndimage.gaussian_filter(mask.astype(np.float32), sigma=feather)
+            out = (np.clip(soft, 0.0, 1.0) * 255).astype("uint8")
+        else:
+            out = mask.astype("uint8") * 255
+        mask_img = Image.fromarray(out, mode="L")
+
+        self.unload()
+
+        self._report(progress_cb, 95, "Saving mask…")
+        run = _modly_new_run_folder(self.outputs_dir)
+        path = run / "mask.png"
+        mask_img.save(str(path), "PNG")
+
+        self._report(progress_cb, 100, "Done")
+        return path
 
     def _generate_text2img(self, image_bytes, params, progress_cb=None, cancel_event=None) -> Path:
         import torch
@@ -402,6 +492,24 @@ class JuggernautXLGenerator(BaseGenerator):
                 mask_path = str(extra[0] or "")
         return str(mask_path).strip(' "\'')
 
+    @staticmethod
+    def _alpha_mask(image_bytes: bytes, size, background: bool) -> Image.Image:
+        """Build a mask from an image's transparency (see-through area)."""
+        from PIL import ImageOps
+
+        src = Image.open(io.BytesIO(image_bytes))
+        if "A" not in src.getbands():
+            raise ValueError(
+                "This image has no see-through area. Remove the background first "
+                "(Image Editor → Remove Background), or connect a mask."
+            )
+        alpha = src.getchannel("A").convert("L")
+        if alpha.size != size:
+            alpha = alpha.resize(size, Image.LANCZOS)
+        if background:
+            alpha = ImageOps.invert(alpha)
+        return alpha
+
     def _generate_inpaint(self, image_bytes, params, progress_cb=None, cancel_event=None) -> Path:
         import torch
 
@@ -422,13 +530,19 @@ class JuggernautXLGenerator(BaseGenerator):
 
         init_image = self._fit_image(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
 
-        mask_path = self._resolve_mask_path(params)
-        if not mask_path or not Path(mask_path).exists():
-            raise ValueError(
-                "Inpaint needs a mask. Wire a grayscale image into the node's "
-                "second image input (white = replace, black = keep)."
+        mask_source = str(params.get("mask_source", "connected") or "connected").lower()
+        if mask_source.startswith("alpha"):
+            mask_image = self._alpha_mask(
+                image_bytes, init_image.size, background="background" in mask_source
             )
-        mask_image = Image.open(mask_path).convert("L")
+        else:
+            mask_path = self._resolve_mask_path(params)
+            if not mask_path or not Path(mask_path).exists():
+                raise ValueError(
+                    "Inpaint needs a mask. Connect a mask to the Mask input, or set "
+                    "Mask Source to a transparency option."
+                )
+            mask_image = Image.open(mask_path).convert("L")
         if mask_image.size != init_image.size:
             mask_image = mask_image.resize(init_image.size, Image.LANCZOS)
 
