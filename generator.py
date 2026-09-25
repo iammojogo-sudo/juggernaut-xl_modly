@@ -1,9 +1,8 @@
 import io
-import sys
 import os
-import time
+import random
+import sys
 import threading
-import uuid
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -76,16 +75,45 @@ class JuggernautXLGenerator(BaseGenerator):
     DISPLAY_NAME = "Juggernaut XL"
     VRAM_GB      = 6
 
-    def is_downloaded(self) -> bool:
+    # ------------------------------------------------------------------ #
+    # Node / path helpers
+    # ------------------------------------------------------------------ #
+
+    def _node_id(self) -> str:
+        """Node id is the trailing component of model_dir (set by Modly)."""
+        return Path(self.model_dir).name.lower()
+
+    def _base_model_dir(self) -> Path:
+        """Weights dir for this node.
+
+        Every node (generate/edit/inpaint) keeps its own folder, but they all
+        use the same SDXL checkpoint — so share whichever node folder actually
+        holds the weights instead of downloading ~7GB three times.
+        """
         if self.download_check:
-            return (self.model_dir / self.download_check).exists()
-        return self.model_dir.exists() and any(self.model_dir.iterdir())
+            if (self.model_dir / self.download_check).exists():
+                return self.model_dir
+            try:
+                for candidate in sorted(self.model_dir.parent.iterdir()):
+                    if candidate.is_dir() and (candidate / self.download_check).exists():
+                        return candidate
+            except OSError:
+                pass
+        return self.model_dir
+
+    def is_downloaded(self) -> bool:
+        base = self._base_model_dir()
+        return base.exists() and any(base.iterdir())
+
+    # ------------------------------------------------------------------ #
+    # Model lifecycle
+    # ------------------------------------------------------------------ #
 
     def load(self) -> None:
         if self._model is not None:
             return
 
-        # Force UTF-8 for stdout so the base class's Unicode print() works on Windows
+        # Force UTF-8 so the base class's Unicode print() works on Windows.
         os.environ["PYTHONIOENCODING"] = "utf-8"
         try:
             sys.stdout.reconfigure(encoding="utf-8")
@@ -95,13 +123,18 @@ class JuggernautXLGenerator(BaseGenerator):
         if not self.is_downloaded():
             self._auto_download()
 
-        # Never re-fetch from the network at runtime — weights live in Modly's
-        # models/ folder, populated by setup.py / the manifest download.
+        # Weights live in Modly's models/ folder (populated by the manifest
+        # download) — never fetch from the network at generation time.
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
         import torch
-        from diffusers import AutoPipelineForText2Image, DPMSolverMultistepScheduler
+        from diffusers import (
+            AutoPipelineForText2Image,
+            StableDiffusionXLImg2ImgPipeline,
+            StableDiffusionXLInpaintPipeline,
+            DPMSolverMultistepScheduler,
+        )
 
         if sys.platform == "darwin":
             device = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -110,16 +143,32 @@ class JuggernautXLGenerator(BaseGenerator):
             device = "cuda" if torch.cuda.is_available() else "cpu"
             dtype = torch.float16 if device == "cuda" else torch.float32
 
-        print(f"[JuggernautXL] Loading pipeline from {self.model_dir}…")
-        pipe = AutoPipelineForText2Image.from_pretrained(
-            str(self.model_dir),
+        node = self._node_id()
+        base = str(self._base_model_dir())
+        load_kwargs = dict(
             torch_dtype=dtype,
             use_safetensors=True,
             variant="fp16",
         )
+
+        if node in ("edit", "img2img"):
+            print(f"[JuggernautXL] Loading img2img pipeline from {base}…")
+            pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(base, **load_kwargs)
+        elif node == "inpaint":
+            print(f"[JuggernautXL] Loading inpaint pipeline from {base}…")
+            pipe = StableDiffusionXLInpaintPipeline.from_pretrained(base, **load_kwargs)
+        else:
+            print(f"[JuggernautXL] Loading text2img pipeline from {base}…")
+            pipe = AutoPipelineForText2Image.from_pretrained(base, **load_kwargs)
+
+        # Juggernaut XL v9 recommends DPM++ 2M Karras.
         pipe.scheduler = DPMSolverMultistepScheduler.from_config(
-            pipe.scheduler.config, use_karras_sigmas=True, algorithm_type="sde-dpmsolver++"
+            pipe.scheduler.config, use_karras_sigmas=True
         )
+        try:
+            pipe.set_progress_bar_config(disable=True)
+        except Exception:
+            pass
 
         if device == "cuda":
             pipe.enable_attention_slicing()
@@ -127,20 +176,15 @@ class JuggernautXLGenerator(BaseGenerator):
                 pipe.enable_vae_slicing()
             except AttributeError:
                 pass
-            # Attempt xformers memory-efficient attention. In this venv xformers
-            # is not installed, so this is a no-op that falls back to PyTorch's
-            # built-in SDPA (also memory-efficient). If xformers is added later
-            # (or the pipeline runs in another env), this swaps the attention
-            # processors to xformers for a small speed/memory win. Harmless if
-            # unavailable — guarded so we keep SDPA.
+            # xformers isn't installed in this venv, so this falls back to
+            # PyTorch SDPA. Harmless no-op if unavailable.
             try:
                 pipe.enable_xformers_memory_efficient_attention()
                 print("[JuggernautXL] xformers memory-efficient attention enabled")
             except Exception as e:
                 print(f"[JuggernautXL] xformers not available, using SDPA: {e}")
-            # Adaptive device strategy. On >=8GB pin everything to GPU (no
-            # per-step UNet shuffle); on 6GB keep CPU offload (the 4.9GB UNet
-            # can't be pinned resident) and rely on torch.compile for speed.
+            # >=8GB: pin everything to GPU. 6GB: the 4.9GB UNet can't stay
+            # resident, so keep CPU offload and rely on torch.compile for speed.
             total_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
             if total_gb >= 8:
                 pipe = pipe.to("cuda")
@@ -149,10 +193,8 @@ class JuggernautXLGenerator(BaseGenerator):
                     pipe.enable_model_cpu_offload()
                 except Exception:
                     pipe = pipe.to("cuda")
-            # torch.compile the UNet (per-step compute speedup). Under offload
-            # the original hook is preserved so the UNet still shuffles safely.
-            # Needs the Triton backend, which is absent in the portable env, so
-            # guard on it (compile would otherwise crash on the first forward).
+            # torch.compile the UNet. Needs Triton, absent in the portable env,
+            # so guard on it (compile would otherwise crash on first forward).
             import importlib.util as _ilu
             if _ilu.find_spec("triton") is None:
                 print("[JuggernautXL] UNet compile skipped (triton not installed)")
@@ -171,12 +213,10 @@ class JuggernautXLGenerator(BaseGenerator):
         self._model = pipe
         self._device = device
         self._dtype = dtype
-        print(f"[JuggernautXL] Loaded on {device}.")
+        print(f"[JuggernautXL] Loaded '{node or 'generate'}' on {device}.")
 
     def unload(self) -> None:
         super().unload()
-        self._controlnet = None
-        self._controlnet_loaded_repo = None
         try:
             import torch
             if torch.cuda.is_available():
@@ -186,6 +226,10 @@ class JuggernautXLGenerator(BaseGenerator):
         except ImportError:
             pass
 
+    # ------------------------------------------------------------------ #
+    # Inference
+    # ------------------------------------------------------------------ #
+
     def generate(
         self,
         image_bytes: bytes,
@@ -193,61 +237,96 @@ class JuggernautXLGenerator(BaseGenerator):
         progress_cb: Optional[Callable[[int, str], None]] = None,
         cancel_event: Optional[threading.Event] = None,
     ) -> Path:
-        # No image wired into the node? Fall back to the bundled 1x1
-        # placeholder so image-consuming modes still run instead of failing.
+        # No image wired in? Use the bundled 1x1 placeholder so text-to-image
+        # (and REST/MCP callers) never fail on a missing input.
         if not image_bytes:
             image_bytes = _placeholder_image_bytes()
 
-        mode = str(params.get("mode", "generate")).lower()
-
-        if mode == "img2img":
+        node = self._node_id()
+        if node in ("edit", "img2img"):
             return self._generate_img2img(image_bytes, params, progress_cb, cancel_event)
-        elif mode == "inpaint":
+        if node == "inpaint":
             return self._generate_inpaint(image_bytes, params, progress_cb, cancel_event)
-
         return self._generate_text2img(image_bytes, params, progress_cb, cancel_event)
 
-    def _generate_text2img(
-        self,
-        image_bytes: bytes,
-        params: dict,
-        progress_cb: Optional[Callable[[int, str], None]] = None,
-        cancel_event: Optional[threading.Event] = None,
-    ) -> Path:
+    @staticmethod
+    def _num(params: dict, key: str, default: float) -> float:
+        value = params.get(key, default)
+        if value is None or value == "":
+            return float(default)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    @classmethod
+    def _seed(cls, params: dict) -> int:
+        seed = int(cls._num(params, "seed", -1))
+        if seed == -1:
+            seed = random.randint(0, 2**32 - 1)
+        return seed
+
+    @staticmethod
+    def _fit_image(image: Image.Image, max_side: int = 1216) -> Image.Image:
+        """Resize to a multiple of 8 that SDXL's VAE accepts (<= max_side)."""
+        width, height = image.size
+        scale = min(1.0, max_side / max(width, height))
+        width = max(64, round(width * scale))
+        height = max(64, round(height * scale))
+        width = max(64, (width // 8) * 8)
+        height = max(64, (height // 8) * 8)
+        if (width, height) != image.size:
+            image = image.resize((width, height), Image.LANCZOS)
+        return image
+
+    def _run_progress(self, progress_cb, start, end, label):
+        stop_evt = threading.Event()
+        if progress_cb:
+            t = threading.Thread(
+                target=smooth_progress,
+                args=(progress_cb, start, end, label, stop_evt),
+                daemon=True,
+            )
+            t.start()
+        return stop_evt
+
+    def _generate_text2img(self, image_bytes, params, progress_cb=None, cancel_event=None) -> Path:
         import torch
 
         if self._model is None:
             self.load()
 
         prompt = str(params.get("prompt", "")).strip()
-        # Keep sampler settings stable so the node stays simple to use.
-        num_steps = 30
-        guidance_scale = 7.0
-        width = height = 1024
-
         if not prompt:
             raise ValueError("A text prompt is required for generation.")
+        negative_prompt = str(params.get("negative_prompt", "") or "").strip()
+        num_steps = int(self._num(params, "num_inference_steps", 30))
+        guidance_scale = self._num(params, "guidance_scale", 5.0)
+        seed = self._seed(params)
+
+        aspect = str(params.get("aspect_ratio", "1024x1024") or "1024x1024").lower()
+        try:
+            width, height = (int(part) for part in aspect.split("x"))
+        except Exception:
+            width = height = 1024
+        width = max(64, (width // 8) * 8)
+        height = max(64, (height // 8) * 8)
 
         self._report(progress_cb, 5, "Preparing generation…")
         self._check_cancelled(cancel_event)
 
         self._report(progress_cb, 15, "Generating image…")
-        stop_evt = threading.Event()
-        if progress_cb:
-            t = threading.Thread(
-                target=smooth_progress,
-                args=(progress_cb, 15, 90, "Generating image…", stop_evt),
-                daemon=True,
-            )
-            t.start()
-
+        stop_evt = self._run_progress(progress_cb, 15, 90, "Generating image…")
         try:
+            generator = torch.Generator(device=self._device).manual_seed(seed)
             result = self._model(
                 prompt=prompt,
+                negative_prompt=negative_prompt or None,
                 num_inference_steps=num_steps,
                 guidance_scale=guidance_scale,
                 width=width,
                 height=height,
+                generator=generator,
                 output_type="pil",
             )
             image = result.images[0]
@@ -255,7 +334,6 @@ class JuggernautXLGenerator(BaseGenerator):
             stop_evt.set()
 
         self._check_cancelled(cancel_event)
-
         self.unload()
 
         self._report(progress_cb, 95, "Saving image…")
@@ -266,66 +344,38 @@ class JuggernautXLGenerator(BaseGenerator):
         self._report(progress_cb, 100, "Done")
         return path
 
-    def _generate_img2img(
-        self,
-        image_bytes: bytes,
-        params: dict,
-        progress_cb: Optional[Callable[[int, str], None]] = None,
-        cancel_event: Optional[threading.Event] = None,
-    ) -> Path:
+    def _generate_img2img(self, image_bytes, params, progress_cb=None, cancel_event=None) -> Path:
         import torch
-        from diffusers import StableDiffusionXLImg2ImgPipeline
 
         if self._model is None:
             self.load()
 
         prompt = str(params.get("prompt", "")).strip()
-        strength = 0.7
-        num_steps = 30
-        guidance_scale = 7.0
-
         if not prompt:
-            raise ValueError("A text prompt is required.")
+            raise ValueError("A text prompt is required for the edit.")
+        negative_prompt = str(params.get("negative_prompt", "") or "").strip()
+        strength = min(max(self._num(params, "strength", 0.7), 0.0), 1.0)
+        num_steps = int(self._num(params, "num_inference_steps", 30))
+        guidance_scale = self._num(params, "guidance_scale", 5.0)
+        seed = self._seed(params)
 
         self._report(progress_cb, 5, "Preparing image…")
         self._check_cancelled(cancel_event)
 
-        init_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
-        pipe = StableDiffusionXLImg2ImgPipeline(
-            vae=self._model.vae,
-            text_encoder=self._model.text_encoder,
-            text_encoder_2=self._model.text_encoder_2,
-            tokenizer=self._model.tokenizer,
-            tokenizer_2=self._model.tokenizer_2,
-            unet=self._model.unet,
-            scheduler=self._model.scheduler,
-            image_encoder=getattr(self._model, "image_encoder", None),
-            feature_extractor=getattr(self._model, "feature_extractor", None),
-        ).to(self._device)
-        pipe.enable_attention_slicing()
-        try:
-            pipe.enable_vae_slicing()
-        except AttributeError:
-            pass
+        init_image = self._fit_image(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
 
         self._report(progress_cb, 15, "Editing image…")
-        stop_evt = threading.Event()
-        if progress_cb:
-            t = threading.Thread(
-                target=smooth_progress,
-                args=(progress_cb, 15, 90, "Editing image…", stop_evt),
-                daemon=True,
-            )
-            t.start()
-
+        stop_evt = self._run_progress(progress_cb, 15, 90, "Editing image…")
         try:
-            result = pipe(
+            generator = torch.Generator(device=self._device).manual_seed(seed)
+            result = self._model(
                 prompt=prompt,
                 image=init_image,
                 strength=strength,
                 num_inference_steps=num_steps,
                 guidance_scale=guidance_scale,
+                negative_prompt=negative_prompt or None,
+                generator=generator,
                 output_type="pil",
             )
             image = result.images[0]
@@ -333,6 +383,7 @@ class JuggernautXLGenerator(BaseGenerator):
             stop_evt.set()
 
         self._check_cancelled(cancel_event)
+        self.unload()
 
         self._report(progress_cb, 95, "Saving…")
         run = _modly_new_run_folder(self.outputs_dir)
@@ -342,74 +393,60 @@ class JuggernautXLGenerator(BaseGenerator):
         self._report(progress_cb, 100, "Done")
         return path
 
-    def _generate_inpaint(
-        self,
-        image_bytes: bytes,
-        params: dict,
-        progress_cb: Optional[Callable[[int, str], None]] = None,
-        cancel_event: Optional[threading.Event] = None,
-    ) -> Path:
+    def _resolve_mask_path(self, params: dict) -> str:
+        """Mask may arrive as mask_path, image_path_2, or the 2nd wired image."""
+        mask_path = params.get("mask_path") or params.get("image_path_2") or ""
+        if not mask_path:
+            extra = params.get("extra_image_paths") or []
+            if isinstance(extra, (list, tuple)) and extra:
+                mask_path = str(extra[0] or "")
+        return str(mask_path).strip(' "\'')
+
+    def _generate_inpaint(self, image_bytes, params, progress_cb=None, cancel_event=None) -> Path:
         import torch
-        from diffusers import StableDiffusionXLInpaintPipeline
 
         if self._model is None:
             self.load()
 
         prompt = str(params.get("prompt", "")).strip()
-        strength = 0.95
-        num_steps = 30
-        guidance_scale = 7.5
-
         if not prompt:
             raise ValueError("A text prompt is required for inpainting.")
+        negative_prompt = str(params.get("negative_prompt", "") or "").strip()
+        strength = min(max(self._num(params, "strength", 0.9), 0.0), 1.0)
+        num_steps = int(self._num(params, "num_inference_steps", 30))
+        guidance_scale = self._num(params, "guidance_scale", 5.0)
+        seed = self._seed(params)
 
         self._report(progress_cb, 5, "Preparing image and mask…")
         self._check_cancelled(cancel_event)
 
-        init_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        init_image = self._fit_image(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
 
-        mask_path = params.get("mask_path") or params.get("image_path_2") or ""
+        mask_path = self._resolve_mask_path(params)
         if not mask_path or not Path(mask_path).exists():
-            raise ValueError("Inpainting requires a mask image. Wire a second image (mask) into the node inputs.")
+            raise ValueError(
+                "Inpaint needs a mask. Wire a grayscale image into the node's "
+                "second image input (white = replace, black = keep)."
+            )
         mask_image = Image.open(mask_path).convert("L")
         if mask_image.size != init_image.size:
             mask_image = mask_image.resize(init_image.size, Image.LANCZOS)
 
-        pipe = StableDiffusionXLInpaintPipeline(
-            vae=self._model.vae,
-            text_encoder=self._model.text_encoder,
-            text_encoder_2=self._model.text_encoder_2,
-            tokenizer=self._model.tokenizer,
-            tokenizer_2=self._model.tokenizer_2,
-            unet=self._model.unet,
-            scheduler=self._model.scheduler,
-            image_encoder=getattr(self._model, "image_encoder", None),
-            feature_extractor=getattr(self._model, "feature_extractor", None),
-        ).to(self._device)
-        pipe.enable_attention_slicing()
-        try:
-            pipe.enable_vae_slicing()
-        except AttributeError:
-            pass
-
         self._report(progress_cb, 15, "Inpainting…")
-        stop_evt = threading.Event()
-        if progress_cb:
-            t = threading.Thread(
-                target=smooth_progress,
-                args=(progress_cb, 15, 90, "Inpainting…", stop_evt),
-                daemon=True,
-            )
-            t.start()
-
+        stop_evt = self._run_progress(progress_cb, 15, 90, "Inpainting…")
         try:
-            result = pipe(
+            generator = torch.Generator(device=self._device).manual_seed(seed)
+            result = self._model(
                 prompt=prompt,
                 image=init_image,
                 mask_image=mask_image,
+                width=init_image.width,
+                height=init_image.height,
                 strength=strength,
                 num_inference_steps=num_steps,
                 guidance_scale=guidance_scale,
+                negative_prompt=negative_prompt or None,
+                generator=generator,
                 output_type="pil",
             )
             image = result.images[0]
@@ -417,6 +454,7 @@ class JuggernautXLGenerator(BaseGenerator):
             stop_evt.set()
 
         self._check_cancelled(cancel_event)
+        self.unload()
 
         self._report(progress_cb, 95, "Saving…")
         run = _modly_new_run_folder(self.outputs_dir)
@@ -425,27 +463,3 @@ class JuggernautXLGenerator(BaseGenerator):
 
         self._report(progress_cb, 100, "Done")
         return path
-
-    @classmethod
-    def params_schema(cls) -> list:
-        return [
-            {
-                "id": "mode",
-                "label": "Mode",
-                "type": "select",
-                "default": "generate",
-                "options": [
-                    {"value": "generate", "label": "Generate Image"},
-                    {"value": "img2img", "label": "Edit Image"},
-                    {"value": "inpaint", "label": "Inpaint Image"},
-                ],
-                "tooltip": "Create a new image, edit a connected image, or replace a masked area.",
-            },
-            {
-                "id": "prompt",
-                "label": "Prompt",
-                "type": "string",
-                "default": "",
-                "tooltip": "Describe the image to create or the changes to make.",
-            },
-        ]
