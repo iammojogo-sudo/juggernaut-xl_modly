@@ -120,6 +120,8 @@ class JuggernautXLGenerator(BaseGenerator):
         except Exception:
             pass
 
+        node = self._node_id()
+
         if not self.is_downloaded():
             self._auto_download()
 
@@ -136,8 +138,6 @@ class JuggernautXLGenerator(BaseGenerator):
         else:
             device = "cuda" if torch.cuda.is_available() else "cpu"
             dtype = torch.float16 if device == "cuda" else torch.float32
-
-        node = self._node_id()
 
         # The "segment" node runs CLIPSeg, not SDXL — no diffusers pipeline.
         if node == "segment":

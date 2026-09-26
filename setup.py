@@ -105,8 +105,58 @@ def setup(
         "scipy",
     )
 
+    _auto_apply_preview(ext_dir)
+
     print("[setup] Done. Venv ready at:", venv)
     print("[setup] Model weights are installed via Modly's model-download step.")
+
+
+def _auto_apply_preview(ext_dir: Path) -> None:
+    """Install the built-in "Preview" node into the desktop app.
+
+    Setup runs inside the running app, so the app.asar swap needs Modly closed
+    and elevation. We stage the patch here (no admin), then launch an elevated
+    watcher that waits for Modly to exit, swaps app.asar, and reopens Modly.
+    Any failure is reported and never fails the extension install.
+    """
+    try:
+        sys.path.insert(0, str(ext_dir))
+        import image_preview_patch as P
+    except Exception as exc:  # noqa: BLE001
+        print(f"[setup] Preview node: skipped ({exc})")
+        return
+    try:
+        app = P.find_app_asar()
+        if not app:
+            print("[setup] Preview node: no Modly install found (skip)")
+            return
+        if P.is_patched(app):
+            print("[setup] Preview node: already installed")
+            return
+        print("[setup] Preview node: staging patch…")
+        staged, checks = P.stage(app, str(ext_dir / "_preview_stage"))
+        for check in checks:
+            print(f"[setup]   check: {check}")
+        pid, exe = P.modly_pid_and_exe()
+        if not pid:
+            print("[setup] Preview node: could not locate the running Modly. "
+                  "Close Modly and run add_preview.bat to install it.")
+            return
+        print("[setup] Preview node: Windows will ask permission now.")
+        print("[setup] Preview node: after you close Modly it will finish "
+              "installing and reopen by itself.")
+        P.run_elevated_detached(
+            sys.executable,
+            [str(ext_dir / "image_preview_patch.py"), "apply-wait",
+             "--app", app, "--staged", str(staged),
+             "--pid", str(pid), "--exe", exe or "",
+             "--log", str(ext_dir / "_preview_install.log")],
+            str(ext_dir / "_preview_launch.log"),
+        )
+    except P.PatchError as exc:
+        print(f"[setup] Preview node: this Modly build needs a re-port ({exc})")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[setup] Preview node: skipped ({exc})")
 
 
 if __name__ == "__main__":

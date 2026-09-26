@@ -11,6 +11,10 @@ Juggernaut XL v9 makes photorealistic images. This extension adds four nodes:
 The three Juggernaut nodes share one model, so you only download it once. The
 **Select by Text** node uses a small extra model.
 
+Installing this extension also adds a **Preview** node to Modly that shows an
+image result inside the workflow, so you don't have to open the file explorer.
+See **Preview node** below.
+
 ## Install
 
 1. Open Modly.
@@ -23,6 +27,11 @@ The three Juggernaut nodes share one model, so you only download it once. The
 7. Download **Juggernaut XL**. If you want to make masks by text, also download
    **Select by Text**.
 8. Wait until they say **Installed**.
+
+When setup finishes, Modly asks Windows for permission (a UAC prompt, shown as
+Python / Unknown publisher). Click **Yes**, then **fully close Modly**. The
+**Preview** node is installed as Modly closes and Modly reopens itself. If you
+skip the prompt, close Modly and run `add_preview.bat` in the extension folder.
 
 ## Requirements
 
@@ -83,6 +92,23 @@ Useful options:
      from **Remove Background**.
 
 In the mask, **white** parts get replaced and **black** parts stay the same.
+
+### Preview a result
+
+Modly's canvas shows 3D meshes, not flat pictures. The **Preview** node shows an
+image inside the workflow, so you don't have to open your file explorer.
+
+1. Add the **Preview** node (it appears under **Base** in the node list).
+2. Connect an image output — Juggernaut XL, Restyle or Inpaint — to its input.
+3. Run the workflow. The picture appears in the node.
+
+Notes:
+
+- The **Preview** node is installed into Modly itself by this extension, so it
+  is not listed under "Juggernaut XL". It works for any image output.
+- After a Modly update, the node disappears. Click **Repair** on the extension
+  (or run `add_preview.bat` while Modly is closed) to reinstall it.
+- To remove it, run `remove_preview.bat` while Modly is closed.
 
 ## Tips
 

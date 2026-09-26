@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+_preview_stage/
+_preview_install.log
+_preview_install.log.run.bat
+_preview_launch.log
+_preview_launch.log.run.bat
+_preview_remove.log
+_preview_remove.log.run.bat
