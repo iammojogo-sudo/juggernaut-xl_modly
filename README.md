@@ -265,8 +265,6 @@ Leave it on **Connected mask** unless you are using a transparent PNG.
 Modly's canvas is built for 3D models, so flat pictures do not show up on it.
 The **Preview** node displays your image right inside the workflow.
 
-[![Screenshot: an image showing inside the Preview node](docs/images/05-preview-node.png)](docs/images/05-preview-node.png)
-
 ### Steps
 
 1. Add the **Preview** node from **Base** in the node list.
@@ -370,23 +368,6 @@ No. Juggernaut XL, Restyle and Inpaint share one download.
 | Windows "Unknown publisher" popup | Click **Yes**, then fully close Modly so the Preview node installs. |
 | The base **Preview** node or the parameter sliders disappeared after a Modly update | A Modly update overwrites the patched app. Click **Repair** on this extension, or run `add_preview.bat` while Modly is closed. |
 | Nothing happens when I press run | Check the node has a prompt and, for the others, that the wires are connected. |
-
----
-
-## Screenshots
-
-Drop your images into `docs/images/` using these exact file names and they will
-show up everywhere above:
-
-| File | What to capture |
-| --- | --- |
-| `00-node-list.png` | The Juggernaut XL nodes in Modly's node list |
-| `01-generate-node.png` | The Juggernaut XL node with a prompt typed in |
-| `02-restyle-node.png` | The Restyle node wired to an image |
-| `03-select-by-text.png` | Select by Text and the mask it produced |
-| `04-inpaint-wiring.png` | Image + mask both plugged into Inpaint |
-| `05-preview-node.png` | A finished picture showing inside the Preview node |
-| `06-preview-node.png` | The **Base** section of the node list with **Preview** in it |
 
 ---
 
