@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
-"""Modly image-preview addon - adds a "Preview" node to stock Modly.
+"""Modly image-preview addon - adds a "Preview" node + param sliders to stock Modly.
 
-The desktop app's node UI is compiled into app.asar, so an extension cannot
-add a node that draws an image. This patch adds one built-in node type
-(`previewImageNode`, labelled "Preview") that renders the incoming image
-output as a data: URL. It does NOT touch the existing "Preview Views" node.
+Two independent features are patched into the desktop app's renderer bundles
+(the node UI is compiled into app.asar, so an extension cannot add these):
+
+1. Preview node: a built-in node type (`previewImageNode`, labelled "Preview")
+   that renders the incoming image output as a data: URL. It does NOT touch the
+   existing "Preview Views" node.
+2. Param sliders: a range slider next to every numeric (float) parameter that
+   declares `min` + `max`, plus a fix for the stock number box that rewrote
+   "0." into a whole number while typing.
 
 Safety: glob-discovered bundles (no hard-coded hashes), unique-anchor checks,
-sentinel guard, stock backup + SHA256 record, restore-by-copy with verify.
+per-feature sentinel guards, stock backup + SHA256 record, restore-by-copy with
+verify. Features apply independently - an app that already has the Preview
+patch can gain the slider patch without losing it.
 
 CLI (backup/swap/restore need elevation; stage/status work plain):
   python image_preview_patch.py stage      --app <app.asar> --work <dir>
@@ -33,7 +40,9 @@ sys.path.insert(0, str(HERE))
 
 WP_GLOB = "out/renderer/assets/WorkflowsPage-*.js"
 PP_GLOB = "out/renderer/assets/paramPicker-*.js"
+GP_GLOB = "out/renderer/assets/GeneratePage-*.js"
 SENTINEL = "__modlyImgPreview"
+SLIDER_SENTINEL = "__modlyFloatSlider"
 
 BACKUP_SUFFIX = ".modlypreview-bak"
 RECORD_SUFFIX = ".modlypreview.json"
@@ -124,11 +133,18 @@ def find_bundles(tree_dir):
     tree = Path(tree_dir)
     wp = sorted(tree.glob(WP_GLOB))
     pp = sorted(tree.glob(PP_GLOB))
+    gp = sorted(tree.glob(GP_GLOB))
     if len(wp) != 1:
         raise PatchError(f"expected exactly 1 WorkflowsPage bundle, found {len(wp)}")
     if len(pp) != 1:
         raise PatchError(f"expected exactly 1 paramPicker bundle, found {len(pp)}")
-    return wp[0].relative_to(tree).as_posix(), pp[0].relative_to(tree).as_posix()
+    if len(gp) != 1:
+        raise PatchError(f"expected exactly 1 GeneratePage bundle, found {len(gp)}")
+    return (
+        wp[0].relative_to(tree).as_posix(),
+        pp[0].relative_to(tree).as_posix(),
+        gp[0].relative_to(tree).as_posix(),
+    )
 
 
 WP_ANCHORS = {
@@ -221,45 +237,153 @@ def apply_parampicker(text):
     return text
 
 
+# --------------------------------------------------------------------------- #
+# Param slider patch - range slider for float params (min + max) + typing fix
+# --------------------------------------------------------------------------- #
+
+# Stock FloatInput re-synced its text from the committed number whenever the
+# prop lagged a keystroke, so "0." was rewritten to "0" mid-typing. Only reset
+# when the incoming value differs from BOTH what we last emitted and what the
+# text currently reads.
+SLIDER_SYNC_OLD = (
+    '  const [text, setText] = reactExports.useState(String(value));\n'
+    '  const prevValue = reactExports.useRef(value);\n'
+    '  if (prevValue.current !== value && parseFloat(text.replace(",", ".")) !== value) {\n'
+    '    prevValue.current = value;\n'
+    '    setText(String(value));\n'
+    '  }'
+)
+
+SLIDER_SYNC_NEW = (
+    f'  /* {SLIDER_SENTINEL} */\n'
+    '  const [text, setText] = reactExports.useState(String(value));\n'
+    '  const prevValue = reactExports.useRef(value);\n'
+    '  const parsedText = parseFloat(text.replace(",", "."));\n'
+    '  if (prevValue.current !== value && value !== parsedText) {\n'
+    '    prevValue.current = value;\n'
+    '    setText(String(value));\n'
+    '  }'
+)
+
+SLIDER_BRANCH_OLD = (
+    '  if (param.type === "float") {\n'
+    '    return /* @__PURE__ */ jsxRuntimeExports.jsx(FloatInput, '
+    '{ value, onChange: (v) => onChange(v), className: inputCls });\n'
+    '  }'
+)
+
+SLIDER_BRANCH_NEW = (
+    '  if (param.type === "float") {\n'
+    '    const typedNum = typeof value === "number" ? value : parseFloat(value);\n'
+    '    const curNum = isNaN(typedNum) ? (typeof param.default === "number" ? param.default : 0) : typedNum;\n'
+    '    if (typeof param.min === "number" && typeof param.max === "number") {\n'
+    '      const sliderStep = typeof param.step === "number" && param.step > 0 ? param.step : (param.max - param.min) / 100;\n'
+    '      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 w-full", children: [\n'
+    '        /* @__PURE__ */ jsxRuntimeExports.jsx("input", {\n'
+    '          type: "range", min: param.min, max: param.max, step: sliderStep,\n'
+    '          value: Math.min(param.max, Math.max(param.min, curNum)),\n'
+    '          onChange: (e) => { const n = parseFloat(e.target.value); if (!isNaN(n)) onChange(n); },\n'
+    '          style: { accentColor: "#38bdf8", cursor: "pointer" },\n'
+    '          className: "nodrag flex-1"\n'
+    '        }),\n'
+    '        /* @__PURE__ */ jsxRuntimeExports.jsx(FloatInput, {\n'
+    '          value, onChange: (v) => onChange(v),\n'
+    '          className: inputCls.replace("w-full", "w-16 shrink-0 text-center")\n'
+    '        })\n'
+    '      ] });\n'
+    '    }\n'
+    '    return /* @__PURE__ */ jsxRuntimeExports.jsx(FloatInput, { value, onChange: (v) => onChange(v), className: inputCls });\n'
+    '  }'
+)
+
+SLIDER_ANCHORS = {
+    "floatSync": SLIDER_SYNC_OLD,
+    "floatBranch": SLIDER_BRANCH_OLD,
+}
+
+
+def apply_slider(text, bundle_name):
+    if SLIDER_SENTINEL in text:
+        raise PatchError(f"{bundle_name} slider already patched (sentinel present)")
+    for key, anchor in SLIDER_ANCHORS.items():
+        _once(text, anchor, f"{bundle_name}:{key}")
+    text = text.replace(SLIDER_SYNC_OLD, SLIDER_SYNC_NEW, 1)
+    text = text.replace(SLIDER_BRANCH_OLD, SLIDER_BRANCH_NEW, 1)
+    return text
+
+
+def _count_problems(text, anchors, label, problems):
+    for key, anchor in anchors.items():
+        n = text.count(anchor)
+        if n != 1:
+            problems.append(f"{label} anchor {key}: found {n}x (need 1x)")
+
+
 def gate(tree_dir):
-    """Return (wp_rel, pp_rel) or raise PatchError with all problems."""
+    """Return (wp_rel, pp_rel, gp_rel, needs_preview, needs_slider) or raise.
+
+    Features are independent: an app that already carries the Preview patch can
+    still receive the slider patch (and vice versa), so anchors for a feature
+    are only required when that feature is not applied yet.
+    """
     try:
-        wp, pp = find_bundles(tree_dir)
+        wp, pp, gp = find_bundles(tree_dir)
     except PatchError:
         raise
     tree = Path(tree_dir)
     gtext = (tree / wp).read_text(encoding="utf-8", errors="replace")
     ptext = (tree / pp).read_text(encoding="utf-8", errors="replace")
+    gp_text = (tree / gp).read_text(encoding="utf-8", errors="replace")
+
+    needs_preview = SENTINEL not in gtext
+    needs_slider = SLIDER_SENTINEL not in gtext
+    needs_slider_gp = SLIDER_SENTINEL not in gp_text
+
     problems = []
-    if SENTINEL in gtext:
-        problems.append("already patched (sentinel present) - restore first")
-    for key, anchor in WP_ANCHORS.items():
-        n = gtext.count(anchor)
-        if n != 1:
-            problems.append(f"WP anchor {key}: found {n}x (need 1x)")
-    for key, anchor in PP_ANCHORS.items():
-        n = ptext.count(anchor)
-        if n != 1:
-            problems.append(f"PP anchor {key}: found {n}x (need 1x)")
+    if needs_preview:
+        _count_problems(gtext, WP_ANCHORS, "WP", problems)
+        _count_problems(ptext, PP_ANCHORS, "PP", problems)
+    if needs_slider:
+        _count_problems(gtext, SLIDER_ANCHORS, "WP-slider", problems)
+    if needs_slider_gp:
+        _count_problems(gp_text, SLIDER_ANCHORS, "GP-slider", problems)
+    if not (needs_preview or needs_slider or needs_slider_gp):
+        raise PatchError("already patched (all sentinels present) - restore first")
     if problems:
         raise PatchError("; ".join(problems))
-    return wp, pp
+    return wp, pp, gp, needs_preview, needs_slider
 
 
 def apply_patch(tree_dir):
-    wp, pp = gate(tree_dir)
+    wp, pp, gp, needs_preview, needs_slider = gate(tree_dir)
     tree = Path(tree_dir)
-    (tree / wp).write_text(
-        apply_workflows((tree / wp).read_text(encoding="utf-8", errors="replace")),
-        encoding="utf-8", newline="",
-    )
-    (tree / pp).write_text(
-        apply_parampicker((tree / pp).read_text(encoding="utf-8", errors="replace")),
-        encoding="utf-8", newline="",
-    )
-    if SENTINEL not in (tree / wp).read_text(encoding="utf-8", errors="replace"):
-        raise PatchError("patch applied but sentinel missing - aborting")
-    return wp, pp
+
+    gtext = (tree / wp).read_text(encoding="utf-8", errors="replace")
+    if needs_preview:
+        gtext = apply_workflows(gtext)
+    if needs_slider:
+        gtext = apply_slider(gtext, "WorkflowsPage")
+    (tree / wp).write_text(gtext, encoding="utf-8", newline="")
+
+    if needs_preview:
+        (tree / pp).write_text(
+            apply_parampicker((tree / pp).read_text(encoding="utf-8", errors="replace")),
+            encoding="utf-8", newline="",
+        )
+
+    gp_text = (tree / gp).read_text(encoding="utf-8", errors="replace")
+    if SLIDER_SENTINEL not in gp_text:
+        gp_text = apply_slider(gp_text, "GeneratePage")
+    (tree / gp).write_text(gp_text, encoding="utf-8", newline="")
+
+    final = (tree / wp).read_text(encoding="utf-8", errors="replace")
+    if needs_preview and SENTINEL not in final:
+        raise PatchError("preview patch applied but sentinel missing - aborting")
+    if needs_slider and SLIDER_SENTINEL not in final:
+        raise PatchError("slider patch applied but sentinel missing - aborting")
+    if SLIDER_SENTINEL not in (tree / gp).read_text(encoding="utf-8", errors="replace"):
+        raise PatchError("slider patch applied to GeneratePage but sentinel missing - aborting")
+    return wp, pp, gp
 
 
 # --------------------------------------------------------------------------- #
@@ -305,16 +429,37 @@ def _backup_path(app_asar):
     return Path(str(app_asar) + BACKUP_SUFFIX)
 
 
-def is_patched(app_asar):
-    """True if the sentinel is present in the WorkflowsPage bundle."""
+def patch_state(app_asar):
+    """Which features are present in the app bundle: preview + slider."""
     import asar_min as A
     with tempfile.TemporaryDirectory() as tmp:
         A.extract(str(app_asar), tmp)
         tree = Path(tmp)
-        wp = sorted(tree.glob(WP_GLOB))
-        if not wp:
-            return False
-        return SENTINEL in wp[0].read_text(encoding="utf-8", errors="replace")
+
+        def _read(glob):
+            hits = sorted(tree.glob(glob))
+            if not hits:
+                return ""
+            return hits[0].read_text(encoding="utf-8", errors="replace")
+
+        wp_text = _read(WP_GLOB)
+        gp_text = _read(GP_GLOB)
+        return {
+            "preview": bool(wp_text) and SENTINEL in wp_text,
+            "slider": bool(wp_text) and SLIDER_SENTINEL in wp_text,
+            "slider_generate": bool(gp_text) and SLIDER_SENTINEL in gp_text,
+        }
+
+
+def is_patched(app_asar):
+    """True if the Preview node patch is present in the WorkflowsPage bundle."""
+    return patch_state(app_asar)["preview"]
+
+
+def needs_patch(app_asar):
+    """True if any feature (Preview node, param sliders) is not yet applied."""
+    state = patch_state(app_asar)
+    return not (state["preview"] and state["slider"] and state["slider_generate"])
 
 
 def stage(app_asar, work_dir):
@@ -327,8 +472,8 @@ def stage(app_asar, work_dir):
     work_dir.mkdir(parents=True, exist_ok=True)
     header, _ = A.read_header(str(app_asar))
     A.extract(str(app_asar), str(tree))
-    wp, pp = apply_patch(tree)
-    checks = [_esm_check(tree / wp), _esm_check(tree / pp)]
+    wp, pp, gp = apply_patch(tree)
+    checks = [_esm_check(tree / wp), _esm_check(tree / pp), _esm_check(tree / gp)]
     staged = work_dir / "app.patched.asar"
     A.repack(header, str(tree), str(staged))
     return staged, checks
@@ -511,7 +656,12 @@ def cmd_status(app_asar):
     app_asar = Path(app_asar)
     out = {"app": str(app_asar), "sha256": sha256(app_asar)}
     try:
-        out["patched"] = is_patched(app_asar)
+        state = patch_state(app_asar)
+        out["features"] = state
+        out["needs_patch"] = not (
+            state["preview"] and state["slider"] and state["slider_generate"]
+        )
+        out["patched"] = state["preview"]
     except Exception as exc:  # noqa: BLE001
         out["patched"] = f"unknown ({exc})"
     rec = _record_path(app_asar)

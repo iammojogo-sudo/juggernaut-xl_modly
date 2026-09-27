@@ -130,10 +130,10 @@ def _auto_apply_preview(ext_dir: Path) -> None:
         if not app:
             print("[setup] Preview node: no Modly install found (skip)")
             return
-        if P.is_patched(app):
-            print("[setup] Preview node: already installed")
+        if not P.needs_patch(app):
+            print("[setup] Preview node + sliders: already installed")
             return
-        print("[setup] Preview node: staging patch…")
+        print("[setup] Preview node + sliders: staging patch…")
         staged, checks = P.stage(app, str(ext_dir / "_preview_stage"))
         for check in checks:
             print(f"[setup]   check: {check}")

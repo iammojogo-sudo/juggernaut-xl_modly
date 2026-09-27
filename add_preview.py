@@ -48,12 +48,15 @@ def main():
     print(f"Modly app.asar: {app}")
 
     try:
-        if P.is_patched(app):
-            print("The Preview node is ALREADY installed.")
-            return 0
+        state = P.patch_state(app)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: could not read Modly's app.asar ({exc})")
         return 1
+    if not P.needs_patch(app):
+        print("The Preview node and the parameter sliders are ALREADY installed.")
+        return 0
+    missing = [k for k, v in state.items() if not v]
+    print(f"Missing features: {', '.join(missing)}")
 
     work = HERE / "_preview_stage"
     try:
