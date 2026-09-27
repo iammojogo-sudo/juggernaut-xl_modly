@@ -1,150 +1,361 @@
 # Juggernaut XL for Modly
 
-Juggernaut XL v9 makes photorealistic images. This extension adds four nodes:
+This extension adds image-making nodes to Modly. The model makes **realistic
+photos** from plain text.
 
-- **Juggernaut XL** — make a new image from text.
-- **Juggernaut XL Restyle** — redraw a whole image from a prompt. It does not
-  keep parts unchanged.
-- **Select by Text** — make a mask by typing what to select, like "sky".
-- **Juggernaut XL Inpaint** — replace part of an image using a mask.
+You do not need to know anything about AI. Pick a node, type what you want, press
+run.
 
-The three Juggernaut nodes share one model, so you only download it once. The
-**Select by Text** node uses a small extra model.
+---
 
-Installing this extension also adds a **Preview** node to Modly that shows an
-image result inside the workflow, so you don't have to open the file explorer.
-See **Preview node** below.
+## The 5 nodes at a glance
 
-## Install
+| Node | What it does in one line | Do I connect anything? |
+| --- | --- | --- |
+| **Juggernaut XL** | Makes a brand new image from words | No |
+| **Juggernaut XL Restyle** | Redraws a **whole** image in a new style | Yes: image in |
+| **Select by Text** | Picks out a part (like the sky) by typing its name | Yes: image in |
+| **Juggernaut XL Inpaint** | Replaces **only** the white part of a mask | Yes: image + mask |
+| **Preview** | Shows the finished picture inside the workflow | Yes: image in |
+
+The three Juggernaut nodes share **one** model download. **Select by Text** needs
+one small extra model.
+
+![Screenshot: the Juggernaut XL nodes in the Modly node list](docs/images/00-node-list.png)
+
+---
+
+## Install (do this once)
 
 1. Open Modly.
-2. Go to **Extensions**.
+2. Click **Extensions**.
 3. Click **Install from GitHub**.
-4. Paste this link:
+4. Paste this link and confirm:
    `https://github.com/iammojogo-sudo/juggernaut-xl_modly`
-5. Wait for the setup to finish.
+5. Wait for setup to finish. Do not close Modly while it runs.
 6. Go to the **Models** page.
-7. Download **Juggernaut XL**. If you want to make masks by text, also download
-   **Select by Text**.
-8. Wait until they say **Installed**.
+7. Download **Juggernaut XL**.
+   - Want to select parts by typing words? Also download **Select by Text**.
+8. Wait until it says **Installed**.
 
-When setup finishes, Modly asks Windows for permission (a UAC prompt, shown as
-Python / Unknown publisher). Click **Yes**, then **fully close Modly**. The
-**Preview** node is installed as Modly closes and Modly reopens itself. If you
-skip the prompt, close Modly and run `add_preview.bat` in the extension folder.
+**About the popup:** at the end of setup Windows asks for permission (a blue
+prompt that says Python / Unknown publisher). Click **Yes**. Then **fully close
+Modly**. The **Preview** node gets installed while Modly is closed, and Modly
+reopens by itself.
 
-## Requirements
+- Clicked **No** by mistake? Close Modly, then double-click `add_preview.bat` in
+  this extension's folder.
+- Want the Preview node gone? Close Modly, then run `remove_preview.bat`.
 
-- An NVIDIA GPU is recommended.
-- 6 GB of VRAM is the minimum. 8 GB or more is better.
-- Free disk space for the models and the extension.
-- On a Mac it can use MPS, but it is slower than NVIDIA.
+---
 
-## How to use
+## What you need
 
-### Make an image
+- A computer with an NVIDIA graphics card (recommended).
+- **6 GB** of video memory minimum. **8 GB or more** is much better.
+- Some free disk space for the models.
+- Mac works too, but it is slower.
 
-1. Add the **Juggernaut XL** node.
-2. Type what you want in the **Prompt** box.
-3. Click generate.
+---
 
-You don't have to connect anything.
+## Node 1 — Juggernaut XL (make a picture from words)
 
-### Restyle an image
+Use this when you have **no picture** and just want one.
 
-This node redraws the **whole** image from your prompt. It cannot keep parts of
-the image unchanged. To change only one area, use Select by Text + Inpaint.
+![Screenshot: the Juggernaut XL node with the prompt box filled in](docs/images/01-generate-node.png)
+
+### Steps
+
+1. Add the **Juggernaut XL** node to your workflow.
+2. In **Prompt**, type what you want to see. Example:
+   `a golden retriever puppy sleeping on a red couch, photo`
+3. Leave everything else alone the first time.
+4. Press run.
+5. Look at the result with a **Preview** node (see Node 5).
+
+That's it. **You do not connect any wires to this node.**
+
+### Every setting explained
+
+| Setting | What it does | What to put |
+| --- | --- | --- |
+| **Prompt** | The description of the picture | Plain words. Name the subject, place, and lighting. |
+| **Negative Prompt** | Things to keep out of the picture | **Leave it empty.** This model works better with nothing here. |
+| **Quality Steps** | How long it works on the picture | `30` is fine. `20` is faster but rougher. `40–50` is slower and a bit nicer. |
+| **Prompt Guidance** | How strictly it follows your words | `5`. Lower (`3–4`) = more realistic. Higher (`7+`) = stranger, more forced. |
+| **Aspect Ratio** | The shape of the picture | Pick **Portrait** for people, **Landscape** for scenery, **Square** for both. |
+| **Seed** | The random number for this run | `-1` = different every time. Type a number to get the **exact same** picture again. |
+
+### When it goes wrong
+
+- **Nothing looks like your words** → your prompt is too short. Add details like
+  place, light, and camera style.
+- **It crashes or runs out of memory** → use a smaller image size, or close
+  other programs.
+- **The picture is weird/blurry** → raise Quality Steps to `40`.
+
+---
+
+## Node 2 — Juggernaut XL Restyle (redraw a whole picture)
+
+Use this when you have a picture and want it **redrawn in a different style**,
+like oil painting, anime, or winter.
+
+![Screenshot: the Restyle node connected to an image source](docs/images/02-restyle-node.png)
+
+### Important
+
+This node changes the **entire** picture. It **cannot** keep one part the same.
+If you only want to change one area (for example the sky), stop and use
+[Node 3 + Node 4](#node-4--juggernaut-xl-inpaint-change-only-one-part) instead.
+
+### Steps
 
 1. Add the **Juggernaut XL Restyle** node.
-2. Connect your image to it.
-3. Type a prompt that describes the whole picture you want.
-4. Use **Restyle Strength** to pick how much changes:
-   - Low (0.3–0.5) stays closer to the original.
-   - High (0.6–0.8) changes more.
+2. Drag a wire from your image output into this node's image input.
+3. In **Prompt**, describe the **whole** picture you want back, not just the
+   change. Example: `same dog, but in a snowy forest at night, cinematic photo`.
+4. Set **Restyle Strength** (see below).
+5. Press run.
 
-### Make a mask with text
+### Restyle Strength — the one knob that matters
 
-No painting needed.
+| Value | What happens |
+| --- | --- |
+| **0.3 – 0.5** | Stays close to the original. Only small changes. |
+| **0.6 – 0.8** | Changes a lot but you can still tell it is the same scene. |
+| **0.9 – 1.0** | Almost a brand new image. The original barely survives. |
+
+Start at `0.7`. Too strong? Lower it. Too subtle? Raise it.
+
+### Other settings
+
+| Setting | What to put |
+| --- | --- |
+| **Prompt** | Describe the whole result you want. |
+| **Negative Prompt** | Leave empty unless something keeps appearing that you hate. |
+| **Quality Steps** | `30`. |
+| **Prompt Guidance** | `5`. |
+| **Seed** | `-1` for random. Same seed + same settings = same result. |
+
+---
+
+## Node 3 — Select by Text (pick a part by typing its name)
+
+Use this when you want to grab **one thing** in the photo — the sky, the car, a
+person's shirt — without painting over it by hand.
+
+![Screenshot: Select by Text node showing the mask it made](docs/images/03-select-by-text.png)
+
+### Steps
 
 1. Add the **Select by Text** node.
 2. Connect your image to it.
-3. Type what to select in **What to select**, like `sky` or `the bicycle`.
-4. The node outputs a mask image: white where that part is, black elsewhere.
+3. In **What to select**, type the thing you want. Examples:
+   - `sky`
+   - `the bicycle`
+   - `the woman's jacket`
+4. Press run.
+5. The output is a **black-and-white mask**:
+   - **White** = the part you asked for.
+   - **Black** = everything else.
 
-Useful options:
+**Plug that mask into the Inpaint node** (Node 4) to actually change anything.
 
-- **Threshold** — higher selects less, lower selects more.
-- **Invert** — select everything except the part you typed. Handy for keeping
-  a subject and changing the background.
-- **Expand** and **Feather** — grow and soften the mask edges.
+### Every setting explained
 
-### Inpaint an image
+| Setting | What it does | What to put |
+| --- | --- | --- |
+| **What to select** | The words that describe the target | Short and specific. `sky` beats `the part above the trees`. |
+| **Threshold** | How picky the selection is | `0.5` to start. Too much selected → raise it. Not enough selected → lower it. |
+| **Invert** | Flips white and black | `No` normally. `Yes` if you want to keep the thing and change everything else. |
+| **Expand (px)** | Grows the white area outward | `8`. Stops thin seams around the edges. |
+| **Feather (px)** | Softens the edges | `4`. Raise to `10–16` if the change has a hard visible line. |
+
+### When it goes wrong
+
+- **It selected the wrong thing** → be more specific: `the red car`, not `car`.
+- **It selected too much** → raise **Threshold**.
+- **It selected only a small piece** → lower **Threshold**, or turn **Expand** up.
+- **The change has a hard edge** → raise **Feather**.
+
+---
+
+## Node 4 — Juggernaut XL Inpaint (change only one part)
+
+Use this to fix or replace **just one spot** — swap the sky, remove a person,
+change a shirt color — while everything else stays untouched.
+
+![Screenshot: Select by Text wired into the Mask input of the Inpaint node](docs/images/04-inpaint-wiring.png)
+
+### Steps
 
 1. Add the **Juggernaut XL Inpaint** node.
-2. Connect your image to the first input, **Image**.
-3. Connect a mask to the second input, **Mask**. (Use **Select by Text** to make
-   one, or connect any black-and-white image.)
-4. Type what should appear in the masked spot.
-5. Pick a **Mask Source**:
-   - **Connected mask** — use the mask you connected.
-   - **Transparency: replace subject** / **replace background** — use the
-     see-through area of the image instead of a mask. This works with images
-     from **Remove Background**.
+2. Connect the **original picture** to the first input, labeled **Image**.
+3. Connect a **black-and-white mask** to the second input, labeled
+   **Mask (white = replace)**.
+   - Easiest mask: use **Select by Text** (Node 3).
+   - Any hand-made black-and-white PNG works too.
+4. In **Prompt**, describe what should appear **inside the white area** only.
+   Example: `bright orange sunset sky with clouds`.
+5. Press run.
 
-In the mask, **white** parts get replaced and **black** parts stay the same.
+**Rule to remember: WHITE changes, BLACK stays.**
 
-### Preview a result
+### Mask Source — what the mask comes from
 
-Modly's canvas shows 3D meshes, not flat pictures. The **Preview** node shows an
-image inside the workflow, so you don't have to open your file explorer.
+| Option | Use it when |
+| --- | --- |
+| **Connected mask** (default) | You plugged a mask into the second input. This is the normal choice. |
+| **Transparency: replace subject** | Your image has a see-through background and you want to change the **subject** area. Works with **Image Editor → Remove Background**. |
+| **Transparency: replace background** | Same, but you want to change the **background**. |
 
-1. Add the **Preview** node (it appears under **Base** in the node list).
-2. Connect an image output — Juggernaut XL, Restyle or Inpaint — to its input.
+Leave it on **Connected mask** unless you are using a transparent PNG.
+
+### Every setting explained
+
+| Setting | What it does | What to put |
+| --- | --- | --- |
+| **Mask Source** | Where the mask comes from | `Connected mask`. |
+| **Prompt** | What goes in the white area | Describe only that spot, e.g. `wet cobblestone street`. |
+| **Negative Prompt** | Things to avoid | Leave empty. |
+| **Inpaint Strength** | How hard that spot is redrawn | `0.9`. Lower (`0.6–0.7`) keeps more of the old texture. |
+| **Quality Steps** | Time spent on the fix | `30`. |
+| **Prompt Guidance** | How strictly it follows the words | `5`. |
+| **Seed** | Random number | `-1`. |
+
+### When it goes wrong
+
+- **Nothing changed** → your mask has no white in it, or **Mask Source** is set
+  to transparency while you connected a mask.
+- **The whole image changed** → white is covering everything. Fix the mask.
+- **The edges show a visible seam** → go back to Node 3 and raise **Feather**
+  and **Expand**.
+
+---
+
+## Node 5 — Preview (see the picture in Modly)
+
+Modly's canvas is built for 3D models, so flat pictures do not show up on it.
+The **Preview** node displays your image right inside the workflow.
+
+![Screenshot: an image showing inside the Preview node](docs/images/05-preview-node.png)
+
+### Steps
+
+1. Add the **Preview** node. It lives under **Base** in the node list.
+2. Connect any image output to it (Juggernaut XL, Restyle, or Inpaint).
 3. Run the workflow. The picture appears in the node.
 
-Notes:
+### Notes
 
-- The **Preview** node is installed into Modly itself by this extension, so it
-  is not listed under "Juggernaut XL". It works for any image output.
-- After a Modly update, the node disappears. Click **Repair** on the extension
-  (or run `add_preview.bat` while Modly is closed) to reinstall it.
+- This node is installed **into Modly itself**, so it will not appear under
+  "Juggernaut XL" in the extension list. It works with any image output.
+- After you update Modly, the node disappears. Click **Repair** on this
+  extension, or run `add_preview.bat` while Modly is closed.
 - To remove it, run `remove_preview.bat` while Modly is closed.
+
+---
+
+## Copy-paste recipes
+
+### Recipe A — change only the sky
+
+```
+[Your image] ──► Select by Text ("sky") ──► mask ─┐
+[Your image] ───────────────────────────────────► ├─► Inpaint ──► Preview
+                                                 ┘   prompt: "red sunset sky"
+```
+
+### Recipe B — keep the subject, replace the background
+
+1. **Select by Text** with `the person`.
+2. Set **Invert** to **Yes (select everything else)**.
+3. Connect image + mask to **Inpaint**.
+4. Prompt for the new background, e.g. `busy city street at night`.
+
+### Recipe C — restyle a whole picture
+
+```
+[Your image] ──► Restyle ──► Preview
+```
+
+Set **Restyle Strength** to `0.7`, prompt for the whole new look.
+
+### Recipe D — make a picture from nothing
+
+```
+Juggernaut XL ──► Preview
+```
+
+No inputs. Just type a prompt and run.
+
+---
 
 ## Tips
 
-- Keep the default settings at first. They match the model's recommended ones.
-- Leave the **Negative Prompt** empty to start. This model does better without
-  long negative prompts.
-- If you run out of memory, use a smaller image.
+- Keep the default settings at first. They match the model's recommended values.
+- Leave **Negative Prompt** empty. This model does better without long ones.
+- Out of memory? Use a smaller image.
+- Want the same picture again? Put the **Seed** number from the last run back in
+  and change nothing else.
+
+---
 
 ## FAQ
 
 **Why did my restyle change everything?**
-The Restyle node redraws the whole image. It can't keep parts of the image the
-same, even if your prompt says to.
+Because Restyle redraws the whole image. It cannot keep parts the same, even if
+your prompt says so. Use Select by Text + Inpaint for one area.
 
 **How do I change just one thing, like the sky?**
-Use **Select by Text** with `sky`, connect its output to the **Mask** input of
-**Inpaint**, and prompt for what you want there (for example `red sky`). Only
-the white part of the mask changes.
+Select by Text → type `sky` → connect its mask to Inpaint → prompt for what you
+want there. Only the white part changes.
 
-**How do I make the mask myself?**
+**How do I make a mask myself?**
 Any black-and-white image works: white on the part to change, black elsewhere.
-Save it as a PNG and connect it to the **Mask** input.
+Save it as a PNG and plug it into the **Mask** input.
 
 **Why can't I say "keep everything the same"?**
-The model uses your prompt for the whole picture. It has no way to attach words
-to specific spots, so that instruction does nothing.
+Your prompt describes the whole picture. There is no way to attach words to one
+spot, so that instruction does nothing.
 
 **How do I remove a background?**
-Use the **Image Editor → Remove Background** node. It keeps the subject exactly
-the same.
+Use **Image Editor → Remove Background**. The subject stays exactly the same.
+
+**Do I have to download the model three times?**
+No. Juggernaut XL, Restyle and Inpaint share one download.
+
+---
 
 ## Troubleshooting
 
-- Still says **Install** after downloading? Reload Modly.
-- Says the weights are missing? Download them from the **Models** page.
-- Out of memory? Use a smaller image, or a machine with more VRAM.
+| Problem | Fix |
+| --- | --- |
+| Still says **Install** after downloading | Reload Modly. |
+| Says the weights are missing | Download them from the **Models** page. |
+| Out of memory / crash | Use a smaller image, close other apps, or use a GPU with more VRAM. |
+| Windows "Unknown publisher" popup | Click **Yes**, then fully close Modly so the Preview node installs. |
+| Preview node vanished after an update | Click **Repair** on the extension, or run `add_preview.bat`. |
+| Nothing happens when I press run | Check the node has a prompt and, for the others, that the wires are connected. |
+
+---
+
+## Screenshots
+
+Drop your images into `docs/images/` using these exact file names and they will
+show up everywhere above:
+
+| File | What to capture |
+| --- | --- |
+| `00-node-list.png` | The Juggernaut XL nodes in Modly's node list |
+| `01-generate-node.png` | The Juggernaut XL node with a prompt typed in |
+| `02-restyle-node.png` | The Restyle node wired to an image |
+| `03-select-by-text.png` | Select by Text and the mask it produced |
+| `04-inpaint-wiring.png` | Image + mask both plugged into Inpaint |
+| `05-preview-node.png` | A finished picture showing inside the Preview node |
+
+---
 
 ## Credits
 
