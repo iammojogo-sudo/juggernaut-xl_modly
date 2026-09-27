@@ -8,7 +8,7 @@ run.
 
 ---
 
-## The 5 nodes at a glance
+## The 4 nodes this extension adds
 
 | Node | What it does in one line | Do I connect anything? |
 | --- | --- | --- |
@@ -16,10 +16,15 @@ run.
 | **Juggernaut XL Restyle** | Redraws a **whole** image in a new style | Yes: image in |
 | **Select by Text** | Picks out a part (like the sky) by typing its name | Yes: image in |
 | **Juggernaut XL Inpaint** | Replaces **only** the white part of a mask | Yes: image + mask |
-| **Preview** | Shows the finished picture inside the workflow | Yes: image in |
 
 The three Juggernaut nodes share **one** model download. **Select by Text** needs
 one small extra model.
+
+> **Note about Preview:** the **Preview** node is **not part of this extension**.
+> It is a built-in **base node** that comes with Modly, and you find it under
+> **Base** in the node list — not under "Juggernaut XL". You do not download it
+> from this extension, and it is not listed on the extension's page. See
+> [Node 5 — Preview](#node-5--preview-see-the-picture-in-modly) below.
 
 ![Screenshot: the Juggernaut XL nodes in the Modly node list](docs/images/00-node-list.png)
 
@@ -40,8 +45,9 @@ one small extra model.
 
 **About the popup:** at the end of setup Windows asks for permission (a blue
 prompt that says Python / Unknown publisher). Click **Yes**. Then **fully close
-Modly**. The **Preview** node gets installed while Modly is closed, and Modly
-reopens by itself.
+Modly**. This is only to add the **Preview** node (a Modly base node, see Node 5)
+to your Modly install — it is not part of the extension itself. Modly reopens by
+itself when it is done.
 
 - Clicked **No** by mistake? Close Modly, then double-click `add_preview.bat` in
   this extension's folder.
@@ -236,6 +242,11 @@ Leave it on **Connected mask** unless you are using a transparent PNG.
 
 ## Node 5 — Preview (see the picture in Modly)
 
+> **This one is not from this extension.** **Preview** is a **base node** that
+> ships with Modly. You find it under **Base** in the node list, next to
+> Modly's other built-in nodes — never under "Juggernaut XL". It is not
+> downloaded, listed or managed as part of this extension.
+
 Modly's canvas is built for 3D models, so flat pictures do not show up on it.
 The **Preview** node displays your image right inside the workflow.
 
@@ -243,17 +254,18 @@ The **Preview** node displays your image right inside the workflow.
 
 ### Steps
 
-1. Add the **Preview** node. It lives under **Base** in the node list.
+1. Add the **Preview** node from **Base** in the node list.
 2. Connect any image output to it (Juggernaut XL, Restyle, or Inpaint).
 3. Run the workflow. The picture appears in the node.
 
 ### Notes
 
-- This node is installed **into Modly itself**, so it will not appear under
-  "Juggernaut XL" in the extension list. It works with any image output.
-- After you update Modly, the node disappears. Click **Repair** on this
-  extension, or run `add_preview.bat` while Modly is closed.
-- To remove it, run `remove_preview.bat` while Modly is closed.
+- It is a **base node**, so it is not listed under "Juggernaut XL" and it does
+  not show up on the extension's page. It works with any image output.
+- If the base **Preview** node is missing from your Modly, the extension's
+  setup can add it: click **Repair** on this extension, or run
+  `add_preview.bat` while Modly is closed.
+- To take it back out, run `remove_preview.bat` while Modly is closed.
 
 ---
 
@@ -336,7 +348,7 @@ No. Juggernaut XL, Restyle and Inpaint share one download.
 | Says the weights are missing | Download them from the **Models** page. |
 | Out of memory / crash | Use a smaller image, close other apps, or use a GPU with more VRAM. |
 | Windows "Unknown publisher" popup | Click **Yes**, then fully close Modly so the Preview node installs. |
-| Preview node vanished after an update | Click **Repair** on the extension, or run `add_preview.bat`. |
+| The base **Preview** node is missing or vanished after a Modly update | It is a Modly base node, so updates can remove it. Click **Repair** on this extension, or run `add_preview.bat` while Modly is closed. |
 | Nothing happens when I press run | Check the node has a prompt and, for the others, that the wires are connected. |
 
 ---
