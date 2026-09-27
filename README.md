@@ -213,10 +213,19 @@ change a shirt color — while everything else stays untouched.
 | Option | Use it when |
 | --- | --- |
 | **Connected mask** (default) | You plugged a mask into the second input. This is the normal choice. |
-| **Transparency: replace subject** | Your image has a see-through background and you want to change the **subject** area. Works with **Image Editor → Remove Background**. |
+| **Transparency: replace subject** | Your image already has a see-through background and you want to change the **subject** area. Works with **Image Editor → Remove Background**. |
 | **Transparency: replace background** | Same, but you want to change the **background**. |
 
 Leave it on **Connected mask** unless you are using a transparent PNG.
+
+> **Careful:** the Transparency options **ignore the mask you connected**. They
+> only look at the see-through area of the image. If your image is a normal,
+> fully opaque picture you get an error like `This image has no see-through
+> area` — even though a mask is connected.
+>
+> - Have a mask connected? → set **Mask Source = Connected mask**.
+> - Want to use Transparency? → run **Image Editor → Remove Background** on the
+>   image first, so it actually has a see-through area.
 
 ### Every setting explained
 
@@ -232,8 +241,10 @@ Leave it on **Connected mask** unless you are using a transparent PNG.
 
 ### When it goes wrong
 
-- **Nothing changed** → your mask has no white in it, or **Mask Source** is set
-  to transparency while you connected a mask.
+- **Nothing changed** → your mask has no white in it.
+- **Error: "This image has no see-through area"** → **Mask Source** is set to a
+  Transparency option but your image is opaque. Set it to **Connected mask**,
+  or remove the background first.
 - **The whole image changed** → white is covering everything. Fix the mask.
 - **The edges show a visible seam** → go back to Node 3 and raise **Feather**
   and **Expand**.
@@ -246,6 +257,8 @@ Leave it on **Connected mask** unless you are using a transparent PNG.
 > ships with Modly. You find it under **Base** in the node list, next to
 > Modly's other built-in nodes — never under "Juggernaut XL". It is not
 > downloaded, listed or managed as part of this extension.
+
+![Screenshot: the Base section of the node list with Preview circled](docs/images/06-preview-node.png)
 
 Modly's canvas is built for 3D models, so flat pictures do not show up on it.
 The **Preview** node displays your image right inside the workflow.
@@ -307,6 +320,10 @@ No inputs. Just type a prompt and run.
 ## Tips
 
 - Keep the default settings at first. They match the model's recommended values.
+- Number boxes (**Restyle Strength**, **Prompt Guidance**, **Threshold**,
+  **Inpaint Strength**) are plain text boxes: type any value, including
+  decimals like `0.5`. Ignore the small folder icon next to them — it is a file
+  browser and clicking it will replace your number with a folder path.
 - Leave **Negative Prompt** empty. This model does better without long ones.
 - Out of memory? Use a smaller image.
 - Want the same picture again? Put the **Seed** number from the last run back in
@@ -366,6 +383,7 @@ show up everywhere above:
 | `03-select-by-text.png` | Select by Text and the mask it produced |
 | `04-inpaint-wiring.png` | Image + mask both plugged into Inpaint |
 | `05-preview-node.png` | A finished picture showing inside the Preview node |
+| `06-preview-node.png` | The **Base** section of the node list with **Preview** in it |
 
 ---
 
