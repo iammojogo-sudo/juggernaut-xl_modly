@@ -532,9 +532,23 @@ class JuggernautXLGenerator(BaseGenerator):
 
         mask_source = str(params.get("mask_source", "connected") or "connected").lower()
         if mask_source.startswith("alpha"):
-            mask_image = self._alpha_mask(
-                image_bytes, init_image.size, background="background" in mask_source
+            label = (
+                "Transparency: replace background"
+                if "background" in mask_source
+                else "Transparency: replace subject"
             )
+            try:
+                mask_image = self._alpha_mask(
+                    image_bytes, init_image.size, background="background" in mask_source
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    f'Mask Source is set to "{label}", so the connected mask is ignored '
+                    "and the see-through area of the image is used instead. This image "
+                    "has no see-through area. Fix: set Mask Source to \"Connected mask\" "
+                    "(you already have a mask connected), or run Image Editor > Remove "
+                    "Background on the image first and keep this option."
+                ) from exc
         else:
             mask_path = self._resolve_mask_path(params)
             if not mask_path or not Path(mask_path).exists():
