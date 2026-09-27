@@ -26,7 +26,7 @@ one small extra model.
 > from this extension, and it is not listed on the extension's page. See
 > [Node 5 — Preview](#node-5--preview-see-the-picture-in-modly) below.
 
-![Screenshot: the Juggernaut XL nodes in the Modly node list](docs/images/00-node-list.png)
+[![Screenshot: the Juggernaut XL nodes in the Modly node list](docs/images/00-node-list.png)](docs/images/00-node-list.png)
 
 ---
 
@@ -45,13 +45,15 @@ one small extra model.
 
 **About the popup:** at the end of setup Windows asks for permission (a blue
 prompt that says Python / Unknown publisher). Click **Yes**. Then **fully close
-Modly**. This is only to add the **Preview** node (a Modly base node, see Node 5)
-to your Modly install — it is not part of the extension itself. Modly reopens by
-itself when it is done.
+Modly**. This adds two small changes to Modly itself: the **Preview** node (a
+Modly base node, see Node 5) and **sliders** next to the number boxes. Neither
+is part of the extension's own node list. Modly reopens by itself when it is
+done.
 
 - Clicked **No** by mistake? Close Modly, then double-click `add_preview.bat` in
   this extension's folder.
-- Want the Preview node gone? Close Modly, then run `remove_preview.bat`.
+- Want them gone? Close Modly, then run `remove_preview.bat`. That restores
+  Modly exactly as it was (removes the Preview node **and** the sliders).
 
 ---
 
@@ -68,7 +70,7 @@ itself when it is done.
 
 Use this when you have **no picture** and just want one.
 
-![Screenshot: the Juggernaut XL node with the prompt box filled in](docs/images/01-generate-node.png)
+[![Screenshot: the Juggernaut XL node with the prompt box filled in](docs/images/01-generate-node.png)](docs/images/01-generate-node.png)
 
 ### Steps
 
@@ -107,7 +109,7 @@ That's it. **You do not connect any wires to this node.**
 Use this when you have a picture and want it **redrawn in a different style**,
 like oil painting, anime, or winter.
 
-![Screenshot: the Restyle node connected to an image source](docs/images/02-restyle-node.png)
+[![Screenshot: the Restyle node connected to an image source](docs/images/02-restyle-node.png)](docs/images/02-restyle-node.png)
 
 ### Important
 
@@ -151,7 +153,7 @@ Start at `0.7`. Too strong? Lower it. Too subtle? Raise it.
 Use this when you want to grab **one thing** in the photo — the sky, the car, a
 person's shirt — without painting over it by hand.
 
-![Screenshot: Select by Text node showing the mask it made](docs/images/03-select-by-text.png)
+[![Screenshot: Select by Text node showing the mask it made](docs/images/03-select-by-text.png)](docs/images/03-select-by-text.png)
 
 ### Steps
 
@@ -192,7 +194,7 @@ person's shirt — without painting over it by hand.
 Use this to fix or replace **just one spot** — swap the sky, remove a person,
 change a shirt color — while everything else stays untouched.
 
-![Screenshot: Select by Text wired into the Mask input of the Inpaint node](docs/images/04-inpaint-wiring.png)
+[![Screenshot: Select by Text wired into the Mask input of the Inpaint node](docs/images/04-inpaint-wiring.png)](docs/images/04-inpaint-wiring.png)
 
 ### Steps
 
@@ -258,12 +260,12 @@ Leave it on **Connected mask** unless you are using a transparent PNG.
 > Modly's other built-in nodes — never under "Juggernaut XL". It is not
 > downloaded, listed or managed as part of this extension.
 
-![Screenshot: the Base section of the node list with Preview circled](docs/images/06-preview-node.png)
+[![Screenshot: the Base section of the node list with Preview circled](docs/images/06-preview-node.png)](docs/images/06-preview-node.png)
 
 Modly's canvas is built for 3D models, so flat pictures do not show up on it.
 The **Preview** node displays your image right inside the workflow.
 
-![Screenshot: an image showing inside the Preview node](docs/images/05-preview-node.png)
+[![Screenshot: an image showing inside the Preview node](docs/images/05-preview-node.png)](docs/images/05-preview-node.png)
 
 ### Steps
 
@@ -321,9 +323,10 @@ No inputs. Just type a prompt and run.
 
 - Keep the default settings at first. They match the model's recommended values.
 - Number boxes (**Restyle Strength**, **Prompt Guidance**, **Threshold**,
-  **Inpaint Strength**) are plain text boxes: type any value, including
-  decimals like `0.5`. Ignore the small folder icon next to them — it is a file
-  browser and clicking it will replace your number with a folder path.
+  **Inpaint Strength**) have a **slider** beside them: drag the slider to scroll
+  the value, or click the number and type any value — decimals like `0.5` are
+  fine and stay put while you type.
+- Screenshots below are small thumbnails — click one to open it full size.
 - Leave **Negative Prompt** empty. This model does better without long ones.
 - Out of memory? Use a smaller image.
 - Want the same picture again? Put the **Seed** number from the last run back in
@@ -365,7 +368,7 @@ No. Juggernaut XL, Restyle and Inpaint share one download.
 | Says the weights are missing | Download them from the **Models** page. |
 | Out of memory / crash | Use a smaller image, close other apps, or use a GPU with more VRAM. |
 | Windows "Unknown publisher" popup | Click **Yes**, then fully close Modly so the Preview node installs. |
-| The base **Preview** node is missing or vanished after a Modly update | It is a Modly base node, so updates can remove it. Click **Repair** on this extension, or run `add_preview.bat` while Modly is closed. |
+| The base **Preview** node or the parameter sliders disappeared after a Modly update | A Modly update overwrites the patched app. Click **Repair** on this extension, or run `add_preview.bat` while Modly is closed. |
 | Nothing happens when I press run | Check the node has a prompt and, for the others, that the wires are connected. |
 
 ---
