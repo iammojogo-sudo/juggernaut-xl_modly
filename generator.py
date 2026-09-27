@@ -547,7 +547,8 @@ class JuggernautXLGenerator(BaseGenerator):
                     "and the see-through area of the image is used instead. This image "
                     "has no see-through area. Fix: set Mask Source to \"Connected mask\" "
                     "(you already have a mask connected), or run Image Editor > Remove "
-                    "Background on the image first and keep this option."
+                    "Background (a separate extension) on the image first and keep this "
+                    "option."
                 ) from exc
         else:
             mask_path = self._resolve_mask_path(params)

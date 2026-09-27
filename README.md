@@ -215,7 +215,7 @@ change a shirt color — while everything else stays untouched.
 | Option | Use it when |
 | --- | --- |
 | **Connected mask** (default) | You plugged a mask into the second input. This is the normal choice. |
-| **Transparency: replace subject** | Your image already has a see-through background and you want to change the **subject** area. Works with **Image Editor → Remove Background**. |
+| **Transparency: replace subject** | Your image already has a see-through background and you want to change the **subject** area. Works with **Image Editor → Remove Background** (a separate extension — see FAQ). |
 | **Transparency: replace background** | Same, but you want to change the **background**. |
 
 Leave it on **Connected mask** unless you are using a transparent PNG.
@@ -227,7 +227,8 @@ Leave it on **Connected mask** unless you are using a transparent PNG.
 >
 > - Have a mask connected? → set **Mask Source = Connected mask**.
 > - Want to use Transparency? → run **Image Editor → Remove Background** on the
->   image first, so it actually has a see-through area.
+>   image first (that node lives in the separate Image Editor extension — see
+>   FAQ), so it actually has a see-through area.
 
 ### Every setting explained
 
@@ -351,7 +352,11 @@ Your prompt describes the whole picture. There is no way to attach words to one
 spot, so that instruction does nothing.
 
 **How do I remove a background?**
-Use **Image Editor → Remove Background**. The subject stays exactly the same.
+That is a **different extension** — it is not part of this one. Look for
+**Image Editor** in Modly under **Extensions** (Install from GitHub), or grab
+it from the **Community Extensions** list in the Modly Discord. Once it is
+installed, use its **Remove Background** node — the subject stays exactly the
+same.
 
 **Do I have to download the model three times?**
 No. Juggernaut XL, Restyle and Inpaint share one download.
